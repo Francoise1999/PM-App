@@ -615,7 +615,7 @@ body::before {
     </button>
 
     <div id="config-error" style="color:var(--red);font-size:11px;margin-top:12px;display:none;text-align:center"></div>
-    <div id="config-loading" style="color:var(--text-muted);font-size:11px;margin-top:12px;display:none;text-align:center">Connexion en cours...</div>
+    <div id="config-loading" style="color:var(--text-muted);font-size:11px;margin-top:12px;display:block;text-align:center">Vérification de la session...</div>
   </div>
 </div>
 
@@ -945,8 +945,21 @@ let chartSubjects = null;
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
 
-    // Watch auth state
-    firebase.auth().onAuthStateChanged(user => {
+    const auth = firebase.auth();
+
+    // Handle redirect result first (coming back from Google sign-in)
+    auth.getRedirectResult().then(result => {
+      // result.user will be null if no redirect happened — that's fine,
+      // onAuthStateChanged below handles the session either way
+    }).catch(e => {
+      showConfigError('Erreur de connexion: ' + e.message);
+      document.getElementById('config-loading').style.display = 'none';
+    });
+
+    // Watch auth state — fires on page load if already signed in,
+    // and after redirect returns
+    auth.onAuthStateChanged(user => {
+      document.getElementById('config-loading').style.display = 'none';
       if (user) {
         uid = user.uid;
         document.getElementById('user-info').innerHTML = `
@@ -959,8 +972,9 @@ let chartSubjects = null;
         populateMonthSelectors();
         navigate('dashboard');
       }
-      // If no user, config screen stays visible
+      // If no user → config screen stays visible (already shown by default)
     });
+
   } catch(e) {
     showConfigError('Erreur Firebase: ' + e.message);
   }
@@ -970,13 +984,14 @@ function signInGoogle() {
   const loadingEl = document.getElementById('config-loading');
   const errorEl = document.getElementById('config-error');
   loadingEl.style.display = 'block';
+  loadingEl.textContent = 'Redirection vers Google...';
   errorEl.style.display = 'none';
   const provider = new firebase.auth.GoogleAuthProvider();
-  firebase.auth().signInWithPopup(provider)
-    .catch(e => {
-      loadingEl.style.display = 'none';
-      showConfigError('Erreur de connexion: ' + e.message);
-    });
+  // Use redirect instead of popup — works on all browsers & GitHub Pages
+  firebase.auth().signInWithRedirect(provider).catch(e => {
+    loadingEl.style.display = 'none';
+    showConfigError('Erreur: ' + e.message);
+  });
 }
 
 function signOut() {
