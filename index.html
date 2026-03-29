@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulletins de Prière</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+<!-- docx export -->
+<script src="https://unpkg.com/docx@8.2.2/build/index.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #0d0d10;
+  --surface: #14141a;
+  --surface2: #1c1c26;
+  --surface3: #242432;
+  --border: rgba(255,255,255,0.07);
+  --border-hover: rgba(255,255,255,0.15);
+  --gold: #c9a84c;
+  --gold-dim: rgba(201,168,76,0.15);
+  --gold-glow: rgba(201,168,76,0.35);
+  --text: #e8e6df;
+  --text-muted: #7a7870;
+  --text-dim: #4a4843;
+  --accent: #8b6ec4;
+  --accent-dim: rgba(139,110,196,0.15);
+  --red: #c45e5e;
+  --green: #5ec47a;
+  --radius: 10px;
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999; opacity: .4;
+}
+
+/* ── LAYOUT ── */
+#app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width: 220px; min-width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 28px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-logo {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  color: var(--gold);
+  line-height: 1.2;
+}
+.sidebar-logo span { display: block; font-size: 11px; color: var(--text-muted); font-family: 'DM Mono', monospace; font-weight: 300; margin-top: 4px; letter-spacing: 0.12em; }
+
+.sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all var(--transition);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  border-left: 2px solid transparent;
+  position: relative;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active { color: var(--gold); border-left-color: var(--gold); background: var(--gold-dim); }
+.nav-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.nav-section-label {
+  padding: 16px 20px 6px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ── MAIN ── */
+#main {
+  flex: 1; overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  backdrop-filter: blur(12px);
+}
+.topbar-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 300;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+.topbar-actions { display: flex; gap: 8px; }
+
+/* ── CONTENT ── */
+.content { padding: 32px; flex: 1; }
+
+/* ── VIEWS ── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: border-color var(--transition);
+}
+.card:hover { border-color: var(--border-hover); }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* ── BULLETIN CARD ── */
+.bulletin-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.bulletin-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.bulletin-card:hover { border-color: var(--border-hover); transform: translateY(-1px); }
+.bulletin-card:hover::before { opacity: 1; }
+
+.bulletin-card-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+.bulletin-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.bulletin-card-actions {
+  display: flex; gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+.tag-gold { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(201,168,76,0.2); }
+.tag-purple { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(139,110,196,0.2); }
+.tag-green { background: rgba(94,196,122,0.12); color: var(--green); border: 1px solid rgba(94,196,122,0.2); }
+.tag-red { background: rgba(196,94,94,0.12); color: var(--red); border: 1px solid rgba(196,94,94,0.2); }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn:hover { border-color: var(--border-hover); background: var(--surface3); }
+.btn-gold {
+  background: var(--gold-dim);
+  border-color: rgba(201,168,76,0.3);
+  color: var(--gold);
+}
+.btn-gold:hover { background: rgba(201,168,76,0.25); border-color: var(--gold); }
+.btn-sm { padding: 5px 10px; font-size: 10px; }
+.btn-danger { background: rgba(196,94,94,0.12); border-color: rgba(196,94,94,0.25); color: var(--red); }
+.btn-danger:hover { background: rgba(196,94,94,0.2); border-color: var(--red); }
+.btn-success { background: rgba(94,196,122,0.12); border-color: rgba(94,196,122,0.25); color: var(--green); }
+.btn-success:hover { background: rgba(94,196,122,0.2); border-color: var(--green); }
+.btn-icon { padding: 6px; }
+.btn svg { width: 13px; height: 13px; }
+
+/* ── INPUTS ── */
+.input, .textarea, .select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.input:focus, .textarea:focus, .select:focus { border-color: var(--gold); }
+.textarea { resize: vertical; min-height: 80px; }
+.select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a7870'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; cursor: pointer; }
+
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 100%; max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+.modal-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 300;
+  margin-bottom: 24px;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+.modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; padding: 4px; border-radius: 4px;
+  transition: color var(--transition);
+}
+.modal-close:hover { color: var(--text); }
+.modal-close svg { width: 16px; height: 16px; }
+
+/* ── SUBJECT LIST ── */
+.subject-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  transition: all var(--transition);
+  position: relative;
+}
+.subject-item:hover { border-color: var(--border-hover); }
+.subject-item.prayed-today { border-left: 3px solid var(--gold); background: var(--gold-dim); }
+
+.subject-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.subject-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  flex: 1;
+}
+.subject-body {
+  font-size: 11px; color: var(--text-muted);
+  margin-top: 6px; line-height: 1.7;
+}
+.subject-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.subject-count {
+  font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em;
+  display: flex; align-items: center; gap: 5px;
+}
+.subject-actions { display: flex; gap: 6px; }
+
+/* ── STATS ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.stat-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 300;
+  color: var(--gold);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.stat-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+.stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+/* ── PROGRESS BAR ── */
+.progress-bar-wrap { background: var(--surface3); border-radius: 20px; height: 6px; overflow: hidden; margin-top: 8px; }
+.progress-bar { height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--gold), var(--accent)); transition: width 0.6s ease; }
+
+/* ── HISTORY TIMELINE ── */
+.timeline { position: relative; padding-left: 24px; }
+.timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 16px; }
+.timeline-dot { position: absolute; left: -21px; top: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); border: 2px solid var(--bg); }
+.timeline-date { font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; margin-bottom: 4px; }
+.timeline-content { font-size: 12px; color: var(--text); }
+
+/* ── MONTH SELECTOR ── */
+.month-selector {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 24px;
+}
+.month-selector select { width: auto; max-width: 180px; }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-dim);
+}
+.empty-state svg { width: 40px; height: 40px; margin-bottom: 16px; opacity: 0.3; }
+.empty-state h3 { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 300; color: var(--text-muted); margin-bottom: 8px; }
+.empty-state p { font-size: 11px; color: var(--text-dim); }
+
+/* ── NOTIFICATION ── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 18px;
+  font-size: 12px;
+  z-index: 9000;
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.3s ease;
+  max-width: 320px;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { border-left: 3px solid var(--green); }
+#toast.error { border-left: 3px solid var(--red); }
+
+/* ── FIREBASE CONFIG SCREEN ── */
+#config-screen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5000;
+  flex-direction: column;
+  padding: 20px;
+}
+.config-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px;
+  width: 100%; max-width: 500px;
+}
+.config-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px; font-weight: 300;
+  color: var(--gold); margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+.config-sub { font-size: 11px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.8; }
+.config-link { color: var(--gold); text-decoration: underline; }
+
+.btn-google {
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 12px 20px;
+  background: #fff;
+  border: none;
+  border-radius: 8px;
+  color: #3c4043;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  letter-spacing: 0.02em;
+}
+.btn-google:hover { background: #f1f3f4; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+
+/* ── CHART CONTAINER ── */
+.chart-container { position: relative; height: 260px; margin-top: 16px; }
+
+/* ── OBJECTIVE SECTION ── */
+.objective-display {
+  display: flex; align-items: center; gap: 20px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 24px;
+}
+.objective-number {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 52px; font-weight: 300;
+  color: var(--gold); line-height: 1;
+  min-width: 80px; text-align: center;
+}
+.objective-info { flex: 1; }
+.objective-info h3 { font-size: 13px; color: var(--text); margin-bottom: 4px; }
+.objective-info p { font-size: 11px; color: var(--text-muted); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* ── MOBILE ── */
+#menu-toggle { display: none; }
+@media (max-width: 768px) {
+  #sidebar { position: fixed; left: -220px; height: 100%; z-index: 200; transition: left 0.3s ease; }
+  #sidebar.open { left: 0; }
+  #menu-toggle { display: flex; }
+  .content { padding: 16px; }
+  .topbar { padding: 12px 16px; }
+  .form-row { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .card-grid { grid-template-columns: 1fr; }
+}
+
+/* ── USE BULLETIN BUTTON ── */
+.use-bulletin-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--gold-dim);
+  border: 1px dashed rgba(201,168,76,0.4);
+  border-radius: 8px;
+  color: var(--gold);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: center;
+  margin-bottom: 16px;
+}
+.use-bulletin-btn:hover { background: rgba(201,168,76,0.25); border-style: solid; }
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; font-weight: 300; letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  background: var(--gold-dim);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 50%;
+  font-size: 10px;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+/* ── TABS ── */
+.tabs { display: flex; gap: 2px; margin-bottom: 24px; background: var(--surface2); border-radius: 8px; padding: 3px; }
+.tab {
+  flex: 1; padding: 7px 12px; text-align: center;
+  font-size: 11px; letter-spacing: 0.06em;
+  border-radius: 6px; cursor: pointer;
+  transition: all var(--transition);
+  color: var(--text-muted);
+}
+.tab.active { background: var(--surface3); color: var(--text); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="config-screen">
+  <div class="config-box">
+    <div class="config-title">✦ Bulletins de Prière</div>
+    <div class="config-sub">
+      Connecte-toi avec ton compte Google pour accéder à tes bulletins depuis n'importe quel appareil.
+    </div>
+
+    <button class="btn-google" onclick="signInGoogle()">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Se connecter avec Google
+    </button>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:10px;color:var(--text-dim);letter-spacing:0.1em">OU</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <button class="btn" style="width:100%;justify-content:center" onclick="useDemo()">
+      Mode démo (données locales)
+    </button>
+
+    <div id="config-error" style="color:var(--red);font-size:11px;margin-top:12px;display:none;text-align:center"></div>
+    <div id="config-loading" style="color:var(--text-muted);font-size:11px;margin-top:12px;display:none;text-align:center">Connexion en cours...</div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">✦ Prière<span>gestion des bulletins</span></div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Navigation</div>
+      <div class="nav-item active" onclick="navigate('dashboard')" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Tableau de bord
+      </div>
+      <div class="nav-item" onclick="navigate('bulletins')" data-view="bulletins">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Bulletins
+      </div>
+      <div class="nav-item" onclick="navigate('suivi')" data-view="suivi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Suivi mensuel
+      </div>
+      <div class="nav-item" onclick="navigate('statistiques')" data-view="statistiques">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Statistiques
+      </div>
+      <div class="nav-item" onclick="navigate('objectifs')" data-view="objectifs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Objectifs
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div id="user-info" style="font-size:10px;color:var(--text-dim);margin-bottom:10px"></div>
+      <button class="btn btn-sm btn-danger" onclick="signOut()" style="width:100%;justify-content:center" id="signout-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Se déconnecter
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div id="main">
+    <!-- Topbar -->
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-icon" id="menu-toggle" onclick="toggleSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div class="topbar-title" id="topbar-title">Tableau de bord</div>
+      </div>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="view active" id="view-dashboard">
+        <div class="stats-grid" id="dashboard-stats"></div>
+        <div class="divider"></div>
+        <div class="section-header">
+          <div class="section-title">Bulletins récents</div>
+          <button class="btn btn-sm btn-gold" onclick="navigate('bulletins')">Voir tout</button>
+        </div>
+        <div id="dashboard-bulletins" class="card-grid"></div>
+      </div>
+
+      <!-- BULLETINS -->
+      <div class="view" id="view-bulletins">
+        <div id="bulletins-list" class="card-grid"></div>
+      </div>
+
+      <!-- SUIVI -->
+      <div class="view" id="view-suivi">
+        <div class="month-selector">
+          <select class="select" id="suivi-month" style="width:auto" onchange="loadSuivi()"></select>
+          <span class="tag tag-gold" id="suivi-month-count">0 utilisations</span>
+        </div>
+        <div id="suivi-content"></div>
+      </div>
+
+      <!-- STATISTIQUES -->
+      <div class="view" id="view-statistiques">
+        <div class="month-selector">
+          <select class="select" id="stats-month" style="width:auto" onchange="loadStats()"></select>
+        </div>
+        <div class="stats-grid" id="stats-cards"></div>
+        <div class="divider"></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-title" style="margin-bottom:4px">Prières par bulletin</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Nombre d'utilisations ce mois</div>
+          <div class="chart-container"><canvas id="chart-bulletins"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-title" style="margin-bottom:4px">Sujets les plus priés</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Top sujets ce mois</div>
+          <div class="chart-container"><canvas id="chart-subjects"></canvas></div>
+        </div>
+      </div>
+
+      <!-- OBJECTIFS -->
+      <div class="view" id="view-objectifs">
+        <div class="objective-display" id="objectif-display">
+          <div class="objective-number" id="objectif-number">—</div>
+          <div class="objective-info">
+            <h3>Objectif mensuel</h3>
+            <p id="objectif-desc">Bulletins à prier par mois</p>
+            <div class="progress-bar-wrap" style="margin-top:10px"><div class="progress-bar" id="objectif-bar" style="width:0%"></div></div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:6px" id="objectif-progress-text"></div>
+          </div>
+          <button class="btn btn-sm" onclick="showObjectifModal()">Modifier</button>
+        </div>
+        <div class="divider"></div>
+        <div class="section-title" style="margin-bottom:16px">Historique des objectifs</div>
+        <div id="objectifs-history"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Bulletin Modal -->
+<div class="modal-overlay" id="modal-bulletin">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-bulletin')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title" id="bulletin-modal-title">Nouveau bulletin</div>
+    <input type="hidden" id="bulletin-id">
+    <div class="form-group">
+      <label class="form-label">Nom du bulletin *</label>
+      <input class="input" id="bulletin-name" placeholder="ex: Prière du matin, Intercession famille..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="textarea" id="bulletin-desc" placeholder="Description optionnelle..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-bulletin')">Annuler</button>
+      <button class="btn btn-gold" onclick="saveBulletin()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Subject Modal -->
+<div class="modal-overlay" id="modal-subject">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-subject')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title" id="subject-modal-title">Nouveau sujet</div>
+    <input type="hidden" id="subject-id">
+    <input type="hidden" id="subject-bulletin-id">
+    <div class="form-group">
+      <label class="form-label">Titre du sujet *</label>
+      <input class="input" id="subject-title" placeholder="ex: Santé de ma famille..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Détails / Versets</label>
+      <textarea class="textarea" id="subject-details" placeholder="Notes, versets bibliques, détails..." style="min-height:120px"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-subject')">Annuler</button>
+      <button class="btn btn-gold" onclick="saveSubject()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulletin Detail Modal -->
+<div class="modal-overlay" id="modal-detail">
+  <div class="modal" style="max-width:700px">
+    <button class="modal-close" onclick="closeModal('modal-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px">
+      <div class="modal-title" id="detail-title" style="margin-bottom:0"></div>
+      <div style="display:flex;gap:8px;flex-shrink:0;margin-top:4px">
+        <button class="btn btn-sm" onclick="exportSubjectsDocx()" title="Exporter Word">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Exporter
+        </button>
+        <label class="btn btn-sm" style="cursor:pointer" title="Importer Word">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Importer
+          <input type="file" accept=".docx" style="display:none" onchange="importSubjectsDocx(event)">
+        </label>
+      </div>
+    </div>
+    <div id="detail-desc" style="font-size:11px;color:var(--text-muted);margin-bottom:16px"></div>
+    <button class="use-bulletin-btn" id="use-bulletin-btn" onclick="useBulletin()">
+      ✦ Marquer comme utilisé aujourd'hui
+    </button>
+    <div class="section-header">
+      <div class="section-title">Sujets de prière <span class="badge" id="subjects-count">0</span></div>
+      <button class="btn btn-sm btn-gold" onclick="showSubjectModal()">+ Ajouter</button>
+    </div>
+    <div id="subjects-list"></div>
+  </div>
+</div>
+
+<!-- Objectif Modal -->
+<div class="modal-overlay" id="modal-objectif">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="closeModal('modal-objectif')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title">Définir un objectif</div>
+    <div class="form-group">
+      <label class="form-label">Bulletins par mois</label>
+      <input class="input" id="objectif-input" type="number" min="1" max="365" placeholder="ex: 20" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mois</label>
+      <select class="select" id="objectif-month-select"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-objectif')">Annuler</button>
+      <button class="btn btn-gold" onclick="saveObjectif()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title" id="confirm-title">Confirmer</div>
+    <div id="confirm-msg" style="font-size:12px;color:var(--text-muted);margin-bottom:24px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-confirm')">Annuler</button>
+      <button class="btn btn-danger" id="confirm-btn">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ========================================
+// FIREBASE CONFIG (baked in)
+// ========================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB-PkBSnKCHyTdoJXxXavCMZm2MQF6uHG8",
+  authDomain: "pm-app-b3237.firebaseapp.com",
+  projectId: "pm-app-b3237",
+  storageBucket: "pm-app-b3237.firebasestorage.app",
+  messagingSenderId: "477839679394",
+  appId: "1:477839679394:web:404e901818b97289479cfb"
+};
+
+// ========================================
+// STATE
+// ========================================
+let db = null;
+let uid = null;
+let demoMode = false;
+let demoData = { bulletins: {}, subjects: {}, usages: {}, prayedSubjects: {}, objectifs: {} };
+let currentView = 'dashboard';
+let currentBulletinId = null;
+let chartBulletins = null;
+let chartSubjects = null;
+
+// ========================================
+// FIREBASE + GOOGLE AUTH INIT
+// ========================================
+(function initApp() {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+
+    // Watch auth state
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        uid = user.uid;
+        document.getElementById('user-info').innerHTML = `
+          <div style="display:flex;align-items:center;gap:6px">
+            ${user.photoURL ? `<img src="${user.photoURL}" style="width:20px;height:20px;border-radius:50%">` : ''}
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${user.displayName || user.email || 'Utilisateur'}</span>
+          </div>`;
+        document.getElementById('config-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        populateMonthSelectors();
+        navigate('dashboard');
+      }
+      // If no user, config screen stays visible
+    });
+  } catch(e) {
+    showConfigError('Erreur Firebase: ' + e.message);
+  }
+})();
+
+function signInGoogle() {
+  const loadingEl = document.getElementById('config-loading');
+  const errorEl = document.getElementById('config-error');
+  loadingEl.style.display = 'block';
+  errorEl.style.display = 'none';
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider)
+    .catch(e => {
+      loadingEl.style.display = 'none';
+      showConfigError('Erreur de connexion: ' + e.message);
+    });
+}
+
+function signOut() {
+  firebase.auth().signOut().then(() => {
+    uid = null;
+    document.getElementById('config-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  });
+}
+
+function useDemo() {
+  demoMode = true;
+  uid = 'demo';
+  const saved = localStorage.getItem('priere_demo');
+  if (saved) demoData = JSON.parse(saved);
+  document.getElementById('config-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('user-info').textContent = 'Mode démo (local)';
+  document.getElementById('signout-btn').style.display = 'none';
+  populateMonthSelectors();
+  navigate('dashboard');
+}
+
+function showConfigError(msg) {
+  const el = document.getElementById('config-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function saveDemo() {
+  if (demoMode) localStorage.setItem('priere_demo', JSON.stringify(demoData));
+}
+
+// ========================================
+// FIRESTORE HELPERS
+// ========================================
+function col(path) { return db.collection(`users/${uid}/${path}`); }
+
+async function getAll(path) {
+  if (demoMode) {
+    const parts = path.split('/');
+    if (parts.length === 1) return Object.entries(demoData[parts[0]] || {}).map(([id,d]) => ({id,...d}));
+    // nested: subjects/bulletinId/items
+    if (parts[0] === 'subjects') {
+      const bId = parts[1];
+      return Object.entries(demoData.subjects[bId] || {}).map(([id,d]) => ({id,...d}));
+    }
+    return [];
+  }
+  const snap = await col(path).get();
+  return snap.docs.map(d => ({id: d.id, ...d.data()}));
+}
+
+async function getDoc2(path, id) {
+  if (demoMode) {
+    const parts = path.split('/');
+    if (parts.length === 1) return demoData[parts[0]]?.[id] || null;
+    return null;
+  }
+  const snap = await col(path).doc(id).get();
+  return snap.exists ? {id: snap.id, ...snap.data()} : null;
+}
+
+async function addDoc2(path, data) {
+  if (demoMode) {
+    const id = 'demo_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    const parts = path.split('/');
+    if (parts.length === 1) {
+      if (!demoData[parts[0]]) demoData[parts[0]] = {};
+      demoData[parts[0]][id] = {...data, createdAt: new Date().toISOString()};
+    } else if (parts[0] === 'subjects') {
+      const bId = parts[1];
+      if (!demoData.subjects[bId]) demoData.subjects[bId] = {};
+      demoData.subjects[bId][id] = {...data, createdAt: new Date().toISOString()};
+    }
+    saveDemo(); return id;
+  }
+  const ref = await col(path).add({...data, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+  return ref.id;
+}
+
+async function updateDoc2(path, id, data) {
+  if (demoMode) {
+    const parts = path.split('/');
+    if (parts.length === 1) {
+      if (demoData[parts[0]]?.[id]) Object.assign(demoData[parts[0]][id], data);
+    } else if (parts[0] === 'subjects') {
+      const bId = parts[1];
+      if (demoData.subjects[bId]?.[id]) Object.assign(demoData.subjects[bId][id], data);
+    }
+    saveDemo(); return;
+  }
+  await col(path).doc(id).update(data);
+}
+
+async function deleteDoc2(path, id) {
+  if (demoMode) {
+    const parts = path.split('/');
+    if (parts.length === 1) delete demoData[parts[0]]?.[id];
+    else if (parts[0] === 'subjects') delete demoData.subjects[parts[1]]?.[id];
+    saveDemo(); return;
+  }
+  await col(path).doc(id).delete();
+}
+
+// ========================================
+// NAVIGATION
+// ========================================
+function navigate(view) {
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
+  const titles = { dashboard: 'Tableau de bord', bulletins: 'Bulletins de prière', suivi: 'Suivi mensuel', statistiques: 'Statistiques', objectifs: 'Objectifs' };
+  document.getElementById('topbar-title').textContent = titles[view];
+  setupTopbarActions(view);
+  // Close sidebar on mobile
+  document.getElementById('sidebar').classList.remove('open');
+  // Load data
+  if (view === 'dashboard') loadDashboard();
+  else if (view === 'bulletins') loadBulletins();
+  else if (view === 'suivi') loadSuivi();
+  else if (view === 'statistiques') loadStats();
+  else if (view === 'objectifs') loadObjectifs();
+}
+
+function setupTopbarActions(view) {
+  const c = document.getElementById('topbar-actions');
+  c.innerHTML = '';
+  if (view === 'bulletins') {
+    c.innerHTML = `<button class="btn btn-gold" onclick="showBulletinModal()">+ Nouveau bulletin</button>`;
+  }
+}
+
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
+// ========================================
+// MONTHS
+// ========================================
+function populateMonthSelectors() {
+  const selectors = ['suivi-month', 'stats-month', 'objectif-month-select'];
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: d.toLocaleDateString('fr-FR', {month:'long', year:'numeric'}) });
+  }
+  selectors.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = months.map(m => `<option value="${m.value}">${m.label}</option>`).join('');
+  });
+}
+
+function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function monthLabel(ym) {
+  const [y,m] = ym.split('-');
+  return new Date(y, m-1, 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
+}
+
+// ========================================
+// DASHBOARD
+// ========================================
+async function loadDashboard() {
+  const bulletins = await getAll('bulletins');
+  const usages = await getAll('usages');
+  const cm = currentMonth();
+  const thisMonthUsages = usages.filter(u => u.month === cm);
+  const objectif = await getObjectifForMonth(cm);
+
+  // Stats
+  const stats = document.getElementById('dashboard-stats');
+  const pct = objectif ? Math.min(100, Math.round(thisMonthUsages.length / objectif * 100)) : null;
+  stats.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${bulletins.length}</div>
+      <div class="stat-label">Bulletins total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${thisMonthUsages.length}</div>
+      <div class="stat-label">Utilisations ce mois</div>
+      ${objectif ? `<div class="stat-sub">Objectif: ${objectif}</div><div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar" style="width:${pct}%"></div></div>` : ''}
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${usages.length}</div>
+      <div class="stat-label">Utilisations total</div>
+    </div>
+    ${objectif ? `<div class="stat-card"><div class="stat-value">${pct}%</div><div class="stat-label">Objectif atteint</div><div class="stat-sub">${monthLabel(cm)}</div></div>` : ''}
+  `;
+
+  // Recent bulletins
+  const container = document.getElementById('dashboard-bulletins');
+  const recent = bulletins.slice(0, 6);
+  if (!recent.length) {
+    container.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><h3>Aucun bulletin</h3><p>Crée ton premier bulletin de prière</p></div>`;
+    return;
+  }
+  container.innerHTML = recent.map(b => bulletinCardHTML(b, usages)).join('');
+}
+
+// ========================================
+// BULLETINS
+// ========================================
+async function loadBulletins() {
+  const bulletins = await getAll('bulletins');
+  const usages = await getAll('usages');
+  const container = document.getElementById('bulletins-list');
+  if (!bulletins.length) {
+    container.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><h3>Aucun bulletin</h3><p>Crée ton premier bulletin de prière</p></div>`;
+    return;
+  }
+  container.innerHTML = bulletins.map(b => bulletinCardHTML(b, usages)).join('');
+}
+
+function bulletinCardHTML(b, usages) {
+  const bUsages = usages.filter(u => u.bulletinId === b.id);
+  const today = new Date().toISOString().split('T')[0];
+  const usedToday = bUsages.some(u => u.date === today);
+  return `
+    <div class="bulletin-card" onclick="openBulletinDetail('${b.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div class="bulletin-card-name">${esc(b.name)}</div>
+        ${usedToday ? '<span class="tag tag-gold">✦ Prié aujourd\'hui</span>' : ''}
+      </div>
+      <div class="bulletin-card-meta">
+        ${b.description ? `<div style="color:var(--text-dim);font-size:11px;margin-top:2px">${esc(b.description.slice(0,80))}${b.description.length>80?'...':''}</div>` : ''}
+        <div>${bUsages.length} utilisation${bUsages.length!==1?'s':''}</div>
+        ${bUsages.length ? `<div>Dernière: ${formatDate(bUsages.sort((a,b2)=>b2.date>a.date?1:-1)[0].date)}</div>` : ''}
+      </div>
+      <div class="bulletin-card-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-gold" onclick="openBulletinDetail('${b.id}')">Ouvrir</button>
+        <button class="btn btn-sm" onclick="showBulletinModal('${b.id}')">Modifier</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('bulletin','${b.id}','${esc(b.name)}')">Supprimer</button>
+      </div>
+    </div>`;
+}
+
+function showBulletinModal(id = null) {
+  document.getElementById('bulletin-id').value = id || '';
+  document.getElementById('bulletin-name').value = '';
+  document.getElementById('bulletin-desc').value = '';
+  document.getElementById('bulletin-modal-title').textContent = id ? 'Modifier le bulletin' : 'Nouveau bulletin';
+  if (id) {
+    getDoc2('bulletins', id).then(b => {
+      if (b) { document.getElementById('bulletin-name').value = b.name || ''; document.getElementById('bulletin-desc').value = b.description || ''; }
+    });
+  }
+  openModal('modal-bulletin');
+}
+
+async function saveBulletin() {
+  const name = document.getElementById('bulletin-name').value.trim();
+  if (!name) { toast('Le nom est requis', 'error'); return; }
+  const id = document.getElementById('bulletin-id').value;
+  const data = { name, description: document.getElementById('bulletin-desc').value.trim() };
+  try {
+    if (id) await updateDoc2('bulletins', id, data);
+    else await addDoc2('bulletins', data);
+    closeModal('modal-bulletin');
+    toast(id ? 'Bulletin modifié' : 'Bulletin créé', 'success');
+    loadBulletins();
+    if (currentView === 'dashboard') loadDashboard();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+// ========================================
+// BULLETIN DETAIL
+// ========================================
+async function openBulletinDetail(id) {
+  currentBulletinId = id;
+  const b = await getDoc2('bulletins', id);
+  if (!b) return;
+  document.getElementById('detail-title').textContent = b.name;
+  document.getElementById('detail-desc').textContent = b.description || '';
+  const today = new Date().toISOString().split('T')[0];
+  const usages = await getAll('usages');
+  const usedToday = usages.some(u => u.bulletinId === id && u.date === today);
+  const btn = document.getElementById('use-bulletin-btn');
+  btn.textContent = usedToday ? '✓ Déjà utilisé aujourd\'hui' : '✦ Marquer comme utilisé aujourd\'hui';
+  btn.style.opacity = usedToday ? '0.5' : '1';
+  btn.style.pointerEvents = usedToday ? 'none' : 'auto';
+  await loadSubjects();
+  openModal('modal-detail');
+}
+
+async function useBulletin() {
+  const today = new Date().toISOString().split('T')[0];
+  const cm = currentMonth();
+  const usages = await getAll('usages');
+  const usedToday = usages.some(u => u.bulletinId === currentBulletinId && u.date === today);
+  if (usedToday) return;
+  try {
+    await addDoc2('usages', { bulletinId: currentBulletinId, date: today, month: cm });
+    const btn = document.getElementById('use-bulletin-btn');
+    btn.textContent = '✓ Déjà utilisé aujourd\'hui';
+    btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none';
+    toast('Bulletin marqué comme utilisé', 'success');
+    if (currentView === 'dashboard') loadDashboard();
+    if (currentView === 'bulletins') loadBulletins();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+// ========================================
+// SUBJECTS
+// ========================================
+async function loadSubjects() {
+  let subjects = [];
+  if (demoMode) {
+    subjects = Object.entries(demoData.subjects[currentBulletinId] || {}).map(([id,d]) => ({id,...d}));
+  } else {
+    const snap = await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).get();
+    subjects = snap.docs.map(d => ({id: d.id, ...d.data()}));
+  }
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('subjects-count').textContent = subjects.length;
+  const container = document.getElementById('subjects-list');
+  if (!subjects.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:30px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg><h3>Aucun sujet</h3><p>Ajoute des sujets de prière</p></div>`;
+    return;
+  }
+  container.innerHTML = subjects.map(s => {
+    const prayedToday = (s.prayedDates || []).includes(today);
+    const count = (s.prayedDates || []).length;
+    return `
+      <div class="subject-item ${prayedToday ? 'prayed-today' : ''}">
+        <div class="subject-header">
+          <div class="subject-title">${esc(s.title)}</div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="btn btn-sm ${prayedToday ? 'btn-success' : 'btn-gold'}" onclick="praySubject('${s.id}','${currentBulletinId}',${prayedToday})">
+              ${prayedToday ? '✓ Prié' : '☆ Prier'}
+            </button>
+          </div>
+        </div>
+        ${s.details ? `<div class="subject-body">${esc(s.details)}</div>` : ''}
+        <div class="subject-footer">
+          <div class="subject-count">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Prié ${count} fois
+            ${(s.prayedDates||[]).length ? `· Dernière fois: ${formatDate((s.prayedDates||[]).sort().reverse()[0])}` : ''}
+          </div>
+          <div class="subject-actions">
+            <button class="btn btn-sm btn-icon" onclick="showSubjectModal('${s.id}')" title="Modifier">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </button>
+            <button class="btn btn-sm btn-icon btn-danger" onclick="confirmDeleteSubject('${s.id}','${esc(s.title)}')" title="Supprimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function praySubject(subjectId, bulletinId, alreadyPrayed) {
+  if (alreadyPrayed) return; // can't un-pray (by design)
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    if (demoMode) {
+      const s = demoData.subjects[bulletinId]?.[subjectId];
+      if (s) { s.prayedDates = [...(s.prayedDates||[]), today]; saveDemo(); }
+    } else {
+      await db.collection(`users/${uid}/bulletins/${bulletinId}/subjects`).doc(subjectId).update({
+        prayedDates: firebase.firestore.FieldValue.arrayUnion(today)
+      });
+    }
+    toast('Sujet marqué comme prié ✦', 'success');
+    loadSubjects();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+function showSubjectModal(id = null) {
+  document.getElementById('subject-id').value = id || '';
+  document.getElementById('subject-bulletin-id').value = currentBulletinId;
+  document.getElementById('subject-title').value = '';
+  document.getElementById('subject-details').value = '';
+  document.getElementById('subject-modal-title').textContent = id ? 'Modifier le sujet' : 'Nouveau sujet';
+  if (id) {
+    let s = null;
+    if (demoMode) s = demoData.subjects[currentBulletinId]?.[id];
+    if (s) { document.getElementById('subject-title').value = s.title || ''; document.getElementById('subject-details').value = s.details || ''; }
+  }
+  openModal('modal-subject');
+}
+
+async function saveSubject() {
+  const title = document.getElementById('subject-title').value.trim();
+  if (!title) { toast('Le titre est requis', 'error'); return; }
+  const id = document.getElementById('subject-id').value;
+  const bId = currentBulletinId;
+  const data = { title, details: document.getElementById('subject-details').value.trim() };
+  try {
+    if (demoMode) {
+      if (!demoData.subjects[bId]) demoData.subjects[bId] = {};
+      if (id) Object.assign(demoData.subjects[bId][id], data);
+      else { const nid = 'demo_' + Date.now(); demoData.subjects[bId][nid] = {...data, prayedDates: []}; }
+      saveDemo();
+    } else {
+      if (id) await db.collection(`users/${uid}/bulletins/${bId}/subjects`).doc(id).update(data);
+      else await db.collection(`users/${uid}/bulletins/${bId}/subjects`).add({...data, prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+    }
+    closeModal('modal-subject');
+    toast(id ? 'Sujet modifié' : 'Sujet ajouté', 'success');
+    loadSubjects();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+function confirmDeleteSubject(id, name) {
+  openModal('modal-confirm');
+  document.getElementById('confirm-title').textContent = 'Supprimer ce sujet ?';
+  document.getElementById('confirm-msg').textContent = `"${name}" sera supprimé définitivement.`;
+  document.getElementById('confirm-btn').onclick = async () => {
+    try {
+      if (demoMode) { delete demoData.subjects[currentBulletinId]?.[id]; saveDemo(); }
+      else await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).doc(id).delete();
+      closeModal('modal-confirm'); toast('Sujet supprimé', 'success'); loadSubjects();
+    } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+  };
+}
+
+// ========================================
+// EXPORT / IMPORT DOCX
+// ========================================
+async function exportSubjectsDocx() {
+  let subjects = [];
+  if (demoMode) subjects = Object.values(demoData.subjects[currentBulletinId] || {});
+  else { const snap = await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).get(); subjects = snap.docs.map(d => d.data()); }
+  const b = await getDoc2('bulletins', currentBulletinId);
+  const { Document, Paragraph, TextRun, HeadingLevel, Packer } = docx;
+  const doc = new Document({
+    sections: [{
+      children: [
+        new Paragraph({ text: b?.name || 'Bulletin de prière', heading: HeadingLevel.HEADING_1 }),
+        new Paragraph({ text: `Exporté le ${new Date().toLocaleDateString('fr-FR')}`, style: 'Normal' }),
+        new Paragraph({ text: '' }),
+        ...subjects.flatMap((s, i) => [
+          new Paragraph({ text: `${i+1}. ${s.title}`, heading: HeadingLevel.HEADING_2 }),
+          ...(s.details ? s.details.split('\n').map(l => new Paragraph({ text: l })) : []),
+          new Paragraph({ text: `Prié ${(s.prayedDates||[]).length} fois`, children: [new TextRun({ text: `Prié ${(s.prayedDates||[]).length} fois`, italics: true, color: '888888' })] }),
+          new Paragraph({ text: '' }),
+        ])
+      ]
+    }]
+  });
+  Packer.toBlob(doc).then(blob => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${b?.name || 'bulletin'}.docx`; a.click(); toast('Exporté en Word', 'success'); });
+}
+
+async function importSubjectsDocx(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
+      const lines = result.value.split('\n').map(l => l.trim()).filter(Boolean);
+      let imported = 0;
+      for (const line of lines) {
+        if (line.length > 3) {
+          const title = line.replace(/^\d+[\.\)]\s*/, '').trim();
+          if (title) {
+            if (demoMode) {
+              if (!demoData.subjects[currentBulletinId]) demoData.subjects[currentBulletinId] = {};
+              const nid = 'demo_' + Date.now() + '_' + imported;
+              demoData.subjects[currentBulletinId][nid] = { title, details: '', prayedDates: [] };
+            } else {
+              await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).add({ title, details: '', prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+            }
+            imported++;
+          }
+        }
+      }
+      if (demoMode) saveDemo();
+      toast(`${imported} sujet(s) importé(s)`, 'success');
+      loadSubjects();
+    } catch(err) { toast('Erreur lors de l\'import: ' + err.message, 'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
+
+// ========================================
+// SUIVI MENSUEL
+// ========================================
+async function loadSuivi() {
+  const month = document.getElementById('suivi-month').value;
+  const usages = await getAll('usages');
+  const monthUsages = usages.filter(u => u.month === month);
+  document.getElementById('suivi-month-count').textContent = `${monthUsages.length} utilisation${monthUsages.length!==1?'s':''}`;
+  const bulletins = await getAll('bulletins');
+  const bMap = Object.fromEntries(bulletins.map(b => [b.id, b]));
+
+  const container = document.getElementById('suivi-content');
+  if (!monthUsages.length) {
+    container.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg><h3>Aucune activité</h3><p>Pas d'utilisation ce mois</p></div>`;
+    return;
+  }
+
+  // Group by bulletin
+  const byBulletin = {};
+  monthUsages.forEach(u => {
+    if (!byBulletin[u.bulletinId]) byBulletin[u.bulletinId] = [];
+    byBulletin[u.bulletinId].push(u);
+  });
+
+  let html = '';
+  for (const [bId, bUsages] of Object.entries(byBulletin)) {
+    const b = bMap[bId];
+    // Get subjects with their prayer counts for this month
+    let subjects = [];
+    if (demoMode) subjects = Object.entries(demoData.subjects[bId] || {}).map(([id,d]) => ({id,...d}));
+    else {
+      try {
+        const snap = await db.collection(`users/${uid}/bulletins/${bId}/subjects`).get();
+        subjects = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      } catch(e) { subjects = []; }
+    }
+
+    // Filter prayedDates to this month only
+    const subjectsWithCount = subjects.map(s => ({
+      ...s,
+      monthCount: (s.prayedDates || []).filter(d => d.startsWith(month)).length
+    })).filter(s => s.monthCount > 0).sort((a,b2) => b2.monthCount - a.monthCount);
+
+    html += `
+      <div class="card" style="margin-bottom:16px">
+        <div class="section-header" style="margin-bottom:12px">
+          <div>
+            <div class="section-title">${esc(b?.name || 'Bulletin supprimé')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${bUsages.length} utilisation${bUsages.length!==1?'s':''}</div>
+          </div>
+          <span class="tag tag-gold">${bUsages.length}×</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          ${bUsages.sort((a,b2) => a.date > b2.date ? 1:-1).map(u => `<span class="tag tag-purple">${formatDate(u.date)}</span>`).join('')}
+        </div>
+        ${subjectsWithCount.length ? `
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px">Sujets priés ce mois</div>
+          ${subjectsWithCount.map(s => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+              <div style="font-size:12px;color:var(--text)">${esc(s.title)}</div>
+              <span class="tag tag-green">${s.monthCount}×</span>
+            </div>`).join('')}` : ''}
+      </div>`;
+  }
+  container.innerHTML = html;
+}
+
+// ========================================
+// STATISTIQUES
+// ========================================
+async function loadStats() {
+  const month = document.getElementById('stats-month').value;
+  const usages = await getAll('usages');
+  const bulletins = await getAll('bulletins');
+  const monthUsages = usages.filter(u => u.month === month);
+  const objectif = await getObjectifForMonth(month);
+  const pct = objectif ? Math.min(100, Math.round(monthUsages.length / objectif * 100)) : null;
+
+  // Stat cards
+  const uniqueDays = [...new Set(monthUsages.map(u => u.date))].length;
+  document.getElementById('stats-cards').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${monthUsages.length}</div>
+      <div class="stat-label">Bulletins utilisés</div>
+      <div class="stat-sub">${monthLabel(month)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${uniqueDays}</div>
+      <div class="stat-label">Jours de prière</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${objectif || '—'}</div>
+      <div class="stat-label">Objectif du mois</div>
+      ${pct !== null ? `<div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar" style="width:${pct}%"></div></div><div class="stat-sub">${pct}% atteint</div>` : ''}
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${bulletins.length}</div>
+      <div class="stat-label">Bulletins total</div>
+    </div>
+  `;
+
+  // Chart: bulletins par utilisation
+  const bMap = Object.fromEntries(bulletins.map(b => [b.id, b.name]));
+  const bCounts = {};
+  monthUsages.forEach(u => { bCounts[u.bulletinId] = (bCounts[u.bulletinId] || 0) + 1; });
+  const bSorted = Object.entries(bCounts).sort((a,b2) => b2[1]-a[1]).slice(0,8);
+
+  if (chartBulletins) chartBulletins.destroy();
+  const ctx1 = document.getElementById('chart-bulletins').getContext('2d');
+  chartBulletins = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: bSorted.map(([id]) => (bMap[id] || 'Inconnu').slice(0,20)),
+      datasets: [{ data: bSorted.map(([,c]) => c), backgroundColor: 'rgba(201,168,76,0.3)', borderColor: 'rgba(201,168,76,0.8)', borderWidth: 1, borderRadius: 4 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#7a7870', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } }, y: { ticks: { color: '#7a7870', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
+  });
+
+  // Chart: sujets les plus priés
+  let allSubjectPrayers = [];
+  for (const b of bulletins) {
+    let subs = [];
+    if (demoMode) subs = Object.values(demoData.subjects[b.id] || {});
+    else { try { const snap = await db.collection(`users/${uid}/bulletins/${b.id}/subjects`).get(); subs = snap.docs.map(d => d.data()); } catch(e) { continue; } }
+    subs.forEach(s => {
+      const count = (s.prayedDates || []).filter(d => d.startsWith(month)).length;
+      if (count > 0) allSubjectPrayers.push({ title: s.title, count });
+    });
+  }
+  allSubjectPrayers.sort((a,b2) => b2.count - a.count);
+  const top = allSubjectPrayers.slice(0,8);
+
+  if (chartSubjects) chartSubjects.destroy();
+  const ctx2 = document.getElementById('chart-subjects').getContext('2d');
+  chartSubjects = new Chart(ctx2, {
+    type: 'horizontalBar' in Chart.defaults ? 'horizontalBar' : 'bar',
+    data: {
+      labels: top.map(s => s.title.slice(0,25)),
+      datasets: [{ data: top.map(s => s.count), backgroundColor: 'rgba(139,110,196,0.3)', borderColor: 'rgba(139,110,196,0.8)', borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#7a7870', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } }, y: { ticks: { color: '#7a7870', font: { size: 10 } } } }
+    }
+  });
+}
+
+// ========================================
+// OBJECTIFS
+// ========================================
+async function getObjectifForMonth(month) {
+  if (demoMode) return demoData.objectifs?.[month] || null;
+  const snap = await col('objectifs').doc(month).get();
+  return snap.exists ? snap.data().value : null;
+}
+
+async function loadObjectifs() {
+  const cm = currentMonth();
+  const objectif = await getObjectifForMonth(cm);
+  const usages = await getAll('usages');
+  const thisMonthUsages = usages.filter(u => u.month === cm);
+
+  document.getElementById('objectif-number').textContent = objectif || '—';
+  const pct = objectif ? Math.min(100, Math.round(thisMonthUsages.length / objectif * 100)) : 0;
+  document.getElementById('objectif-bar').style.width = pct + '%';
+  document.getElementById('objectif-progress-text').textContent = objectif
+    ? `${thisMonthUsages.length} / ${objectif} bulletins (${pct}%) — ${monthLabel(cm)}`
+    : 'Aucun objectif défini pour ce mois';
+
+  // History
+  let objectifsData = {};
+  if (demoMode) objectifsData = demoData.objectifs || {};
+  else { const snap = await col('objectifs').get(); snap.docs.forEach(d => { objectifsData[d.id] = d.data().value; }); }
+
+  const hist = document.getElementById('objectifs-history');
+  const entries = Object.entries(objectifsData).sort((a,b2) => b2[0] > a[0] ? 1 : -1);
+  if (!entries.length) { hist.innerHTML = `<div style="color:var(--text-dim);font-size:12px">Aucun objectif défini</div>`; return; }
+  hist.innerHTML = `<div class="timeline">` + entries.map(([month, val]) => {
+    const mUsages = usages.filter(u => u.month === month).length;
+    const p = Math.min(100, Math.round(mUsages / val * 100));
+    return `<div class="timeline-item">
+      <div class="timeline-dot" style="background:${p>=100?'var(--green)':'var(--gold)'}"></div>
+      <div class="timeline-date">${monthLabel(month)}</div>
+      <div class="timeline-content">Objectif: ${val} bulletins · Réalisé: ${mUsages} (${p}%)
+        <div class="progress-bar-wrap" style="margin-top:6px;max-width:300px"><div class="progress-bar" style="width:${p}%;background:${p>=100?'var(--green)':''}"></div></div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+function showObjectifModal() {
+  const cm = currentMonth();
+  document.getElementById('objectif-input').value = '';
+  // Reset selector to current month
+  const sel = document.getElementById('objectif-month-select');
+  for (let opt of sel.options) { if (opt.value === cm) { sel.value = cm; break; } }
+  openModal('modal-objectif');
+}
+
+async function saveObjectif() {
+  const val = parseInt(document.getElementById('objectif-input').value);
+  if (!val || val < 1) { toast('Valeur invalide', 'error'); return; }
+  const month = document.getElementById('objectif-month-select').value;
+  try {
+    if (demoMode) { if (!demoData.objectifs) demoData.objectifs = {}; demoData.objectifs[month] = val; saveDemo(); }
+    else await col('objectifs').doc(month).set({ value: val });
+    closeModal('modal-objectif');
+    toast('Objectif enregistré', 'success');
+    loadObjectifs();
+    if (currentView === 'dashboard') loadDashboard();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+// ========================================
+// DELETE
+// ========================================
+function confirmDelete(type, id, name) {
+  openModal('modal-confirm');
+  document.getElementById('confirm-title').textContent = 'Supprimer ce bulletin ?';
+  document.getElementById('confirm-msg').textContent = `"${name}" et tous ses sujets seront supprimés définitivement.`;
+  document.getElementById('confirm-btn').onclick = async () => {
+    try {
+      if (demoMode) {
+        delete demoData.bulletins[id];
+        delete demoData.subjects[id];
+        // Remove usages
+        Object.keys(demoData.usages || {}).forEach(k => { if (demoData.usages[k].bulletinId === id) delete demoData.usages[k]; });
+        saveDemo();
+      } else {
+        await col('bulletins').doc(id).delete();
+        // Delete subcollection subjects
+        const snap = await db.collection(`users/${uid}/bulletins/${id}/subjects`).get();
+        await Promise.all(snap.docs.map(d => d.ref.delete()));
+      }
+      closeModal('modal-confirm');
+      toast('Bulletin supprimé', 'success');
+      loadBulletins();
+      if (currentView === 'dashboard') loadDashboard();
+    } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+  };
+}
+
+// ========================================
+// UTILS
+// ========================================
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = type;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
