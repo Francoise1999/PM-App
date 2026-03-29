@@ -918,7 +918,7 @@ body::before {
 // ========================================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB-PkBSnKCHyTdoJXxXavCMZm2MQF6uHG8",
-  authDomain: "francoise1999.github.io",
+  authDomain: "pm-app-b3237.firebaseapp.com",
   projectId: "pm-app-b3237",
   storageBucket: "pm-app-b3237.firebasestorage.app",
   messagingSenderId: "477839679394",
@@ -984,27 +984,14 @@ function signInGoogle() {
   const loadingEl = document.getElementById('config-loading');
   const errorEl = document.getElementById('config-error');
   loadingEl.style.display = 'block';
-  loadingEl.textContent = 'Connexion en cours...';
+  loadingEl.textContent = 'Redirection vers Google...';
   errorEl.style.display = 'none';
   const provider = new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
-  firebase.auth().signInWithPopup(provider)
-    .then(result => {
-      // onAuthStateChanged handles the rest
-    })
-    .catch(e => {
-      // Popup blocked — fall back to redirect
-      if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
-        loadingEl.textContent = 'Redirection vers Google...';
-        firebase.auth().signInWithRedirect(provider).catch(e2 => {
-          loadingEl.style.display = 'none';
-          showConfigError('Erreur: ' + e2.message);
-        });
-      } else {
-        loadingEl.style.display = 'none';
-        showConfigError('Erreur: ' + e.message);
-      }
-    });
+  // Use redirect instead of popup — works on all browsers & GitHub Pages
+  firebase.auth().signInWithRedirect(provider).catch(e => {
+    loadingEl.style.display = 'none';
+    showConfigError('Erreur: ' + e.message);
+  });
 }
 
 function signOut() {
@@ -1242,7 +1229,7 @@ function bulletinCardHTML(b, usages) {
       <div class="bulletin-card-actions" onclick="event.stopPropagation()">
         <button class="btn btn-sm btn-gold" onclick="openBulletinDetail('${b.id}')">Ouvrir</button>
         <button class="btn btn-sm" onclick="showBulletinModal('${b.id}')">Modifier</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('bulletin','${b.id}','${esc(b.name)}')">Supprimer</button>
+        <button class="btn btn-sm btn-danger" data-id="${b.id}" data-name="${esc(b.name)}" onclick="confirmDelete('bulletin', this.dataset.id, this.dataset.name)">Supprimer</button>
       </div>
     </div>`;
 }
@@ -1354,7 +1341,7 @@ async function loadSubjects() {
             <button class="btn btn-sm btn-icon" onclick="showSubjectModal('${s.id}')" title="Modifier">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             </button>
-            <button class="btn btn-sm btn-icon btn-danger" onclick="confirmDeleteSubject('${s.id}','${esc(s.title)}')" title="Supprimer">
+            <button class="btn btn-sm btn-icon btn-danger" data-id="${s.id}" data-title="${esc(s.title)}" onclick="confirmDeleteSubject(this.dataset.id, this.dataset.title)" title="Supprimer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </button>
           </div>
@@ -1793,7 +1780,7 @@ function renderImportunites(items) {
       <div class="imp-log-item">
         <span class="imp-log-date">${l.date}</span>
         <span class="imp-log-count">+${(l.count||0).toLocaleString('fr-FR')}${l.note ? ' — ' + esc(l.note) : ''}</span>
-        <button class="imp-log-del" onclick="deleteImpLog('${imp.id}','${l.id}')">✕</button>
+        <button class="imp-log-del" data-iid="${imp.id}" data-lid="${l.id}" onclick="deleteImpLog(this.dataset.iid, this.dataset.lid)">✕</button>
       </div>`).join('');
 
     const pbHtml = goal > 0 ? `
@@ -1810,7 +1797,7 @@ function renderImportunites(items) {
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
             ${done ? '<span class="imp-badge">✓ Objectif atteint</span>' : ''}
-            <button class="btn btn-sm btn-danger btn-icon" onclick="deleteImpSubject('${imp.id}')" title="Supprimer">
+            <button class="btn btn-sm btn-danger btn-icon" data-id="${imp.id}" onclick="deleteImpSubject(this.dataset.id)" title="Supprimer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </button>
           </div>
@@ -1824,7 +1811,7 @@ function renderImportunites(items) {
           ${pbHtml}
           ${logs.length > 0 ? `<div class="imp-log">${logsHtml}</div>` : ''}
           <div class="imp-add-row">
-            <button class="btn btn-sm btn-gold" onclick="openImpLogModal('${imp.id}','${esc(imp.subject)}')">+ Ajouter des répétitions</button>
+            <button class="btn btn-sm btn-gold" data-id="${imp.id}" data-subject="${esc(imp.subject)}" onclick="openImpLogModal(this.dataset.id, this.dataset.subject)">+ Ajouter des répétitions</button>
           </div>
         </div>
       </div>`;
@@ -1861,7 +1848,7 @@ async function saveImpSubject() {
 }
 
 async function deleteImpSubject(id) {
-  if (!confirm('Supprimer ce sujet d'importunité et tout son historique ?')) return;
+  if (!confirm('Supprimer ce sujet et tout son historique ?')) return;
   try {
     if (demoMode) {
       demoData.importunites = demoData.importunites.filter(x => x.id !== id);
