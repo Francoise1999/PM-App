@@ -533,23 +533,7 @@ body::before {
   .card-grid { grid-template-columns: 1fr; }
 }
 
-/* ── USE BULLETIN BUTTON ── */
-.use-bulletin-btn {
-  width: 100%;
-  padding: 12px;
-  background: var(--gold-dim);
-  border: 1px dashed rgba(201,168,76,0.4);
-  border-radius: 8px;
-  color: var(--gold);
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: all var(--transition);
-  text-align: center;
-  margin-bottom: 16px;
-}
-.use-bulletin-btn:hover { background: rgba(201,168,76,0.25); border-style: solid; }
+
 
 /* ── SECTION HEADER ── */
 .section-header {
@@ -777,23 +761,29 @@ body::before {
   <div class="modal" style="max-width:700px">
     <button class="modal-close" onclick="closeModal('modal-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px">
-      <div class="modal-title" id="detail-title" style="margin-bottom:0"></div>
-      <div style="display:flex;gap:8px;flex-shrink:0;margin-top:4px">
+      <div>
+        <div class="modal-title" id="detail-title" style="margin-bottom:4px"></div>
+        <div id="detail-desc" style="font-size:11px;color:var(--text-muted)"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;margin-top:4px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-sm" onclick="showBulletinHistory()" title="Historique d'utilisation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Historique
+        </button>
         <button class="btn btn-sm" onclick="exportSubjectsDocx()" title="Exporter Word">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Exporter
         </button>
-        <label class="btn btn-sm" style="cursor:pointer" title="Importer Word">
+        <button class="btn btn-sm" onclick="showImportModal()" title="Importer des sujets">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           Importer
-          <input type="file" accept=".docx" style="display:none" onchange="importSubjectsDocx(event)">
-        </label>
+        </button>
+        <button class="btn btn-sm btn-danger" id="detail-delete-btn" title="Supprimer ce bulletin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Supprimer
+        </button>
       </div>
     </div>
-    <div id="detail-desc" style="font-size:11px;color:var(--text-muted);margin-bottom:16px"></div>
-    <button class="use-bulletin-btn" id="use-bulletin-btn" onclick="useBulletin()">
-      ✦ Marquer comme utilisé aujourd'hui
-    </button>
     <div class="section-header">
       <div class="section-title">Sujets de prière <span class="badge" id="subjects-count">0</span></div>
       <button class="btn btn-sm btn-gold" onclick="showSubjectModal()">+ Ajouter</button>
@@ -905,6 +895,50 @@ body::before {
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-imp-log')">Annuler</button>
       <button class="btn btn-gold" onclick="saveImpLog()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Historique du bulletin -->
+<div class="modal-overlay" id="modal-history">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modal-history')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title">Historique d'utilisation</div>
+    <div id="history-content" style="max-height:400px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal" style="max-width:540px">
+    <button class="modal-close" onclick="closeModal('modal-import')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title">Importer des sujets</div>
+    <div class="tabs" style="margin-bottom:20px">
+      <div class="tab active" onclick="switchImportTab('paste',this)">Coller du texte</div>
+      <div class="tab" onclick="switchImportTab('file',this)">Fichier Word</div>
+    </div>
+    <div id="import-tab-paste">
+      <div class="form-group">
+        <label class="form-label">Colle tes sujets ici — sépare chaque sujet par une ligne vide</label>
+        <textarea class="textarea" id="import-paste-text" style="min-height:200px;font-size:12px" placeholder="Seigneur bénis ma famille&#10;&#10;Guérison de mon frère&#10;&#10;Trouver un stage cet été&#10;&#10;Réveil spirituel à l'église..."></textarea>
+      </div>
+      <div class="modal-footer" style="margin-top:0">
+        <button class="btn" onclick="closeModal('modal-import')">Annuler</button>
+        <button class="btn btn-gold" onclick="importFromPaste()">Importer</button>
+      </div>
+    </div>
+    <div id="import-tab-file" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Sélectionne un fichier Word (.docx)</label>
+        <label class="btn" style="cursor:pointer;width:100%;justify-content:center;margin-top:8px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Choisir un fichier .docx
+          <input type="file" accept=".docx" style="display:none" onchange="importSubjectsDocx(event)">
+        </label>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.7">
+          Chaque ligne non-vide du document sera importée comme un sujet séparé.
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1229,7 +1263,6 @@ function bulletinCardHTML(b, usages) {
       <div class="bulletin-card-actions" onclick="event.stopPropagation()">
         <button class="btn btn-sm btn-gold" onclick="openBulletinDetail('${b.id}')">Ouvrir</button>
         <button class="btn btn-sm" onclick="showBulletinModal('${b.id}')">Modifier</button>
-        <button class="btn btn-sm btn-danger" data-id="${b.id}" data-name="${esc(b.name)}" onclick="confirmDelete('bulletin', this.dataset.id, this.dataset.name)">Supprimer</button>
       </div>
     </div>`;
 }
@@ -1274,10 +1307,6 @@ async function openBulletinDetail(id) {
   const today = new Date().toISOString().split('T')[0];
   const usages = await getAll('usages');
   const usedToday = usages.some(u => u.bulletinId === id && u.date === today);
-  const btn = document.getElementById('use-bulletin-btn');
-  btn.textContent = usedToday ? '✓ Déjà utilisé aujourd\'hui' : '✦ Marquer comme utilisé aujourd\'hui';
-  btn.style.opacity = usedToday ? '0.5' : '1';
-  btn.style.pointerEvents = usedToday ? 'none' : 'auto';
   await loadSubjects();
   openModal('modal-detail');
 }
@@ -1351,19 +1380,39 @@ async function loadSubjects() {
 }
 
 async function praySubject(subjectId, bulletinId, alreadyPrayed) {
-  if (alreadyPrayed) return; // can't un-pray (by design)
+  if (alreadyPrayed) return;
   const today = new Date().toISOString().split('T')[0];
+  const cm = currentMonth();
   try {
     if (demoMode) {
       const s = demoData.subjects[bulletinId]?.[subjectId];
       if (s) { s.prayedDates = [...(s.prayedDates||[]), today]; saveDemo(); }
+      // Auto-mark bulletin as used
+      const alreadyUsed = (demoData.usages || []).some(u => u.bulletinId === bulletinId && u.date === today);
+      if (!alreadyUsed) {
+        if (!demoData.usages) demoData.usages = {};
+        const uid2 = 'u_' + Date.now();
+        demoData.usages[uid2] = { bulletinId, date: today, month: cm };
+        saveDemo();
+      }
     } else {
       await db.collection('users').doc(uid).collection('bulletins').doc(bulletinId).collection('subjects').doc(subjectId).update({
         prayedDates: firebase.firestore.FieldValue.arrayUnion(today)
       });
+      // Auto-mark bulletin as used (check first to avoid duplicates)
+      const usageSnap = await db.collection('users').doc(uid).collection('usages')
+        .where('bulletinId','==', bulletinId).where('date','==', today).get();
+      if (usageSnap.empty) {
+        await db.collection('users').doc(uid).collection('usages').add({
+          bulletinId, date: today, month: cm,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
     }
-    toast('Sujet marqué comme prié ✦', 'success');
+    toast('Sujet prié ✦', 'success');
     loadSubjects();
+    if (currentView === 'dashboard') loadDashboard();
+    if (currentView === 'bulletins') loadBulletins();
   } catch(e) { toast('Erreur: ' + e.message, 'error'); }
 }
 
@@ -1920,6 +1969,92 @@ async function deleteImpLog(impId, logId) {
     }
     toast('Session supprimée', 'success');
     loadImportunites();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+// ========================================
+// BULLETIN HISTORY
+// ========================================
+async function showBulletinHistory() {
+  const usages = await getAll('usages');
+  const bUsages = usages
+    .filter(u => u.bulletinId === currentBulletinId)
+    .sort((a,b) => b.date > a.date ? 1 : -1);
+  const container = document.getElementById('history-content');
+  if (!bUsages.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:30px 0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="32" height="32"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <h3>Aucune utilisation</h3>
+      <p>Ce bulletin n'a pas encore été utilisé</p>
+    </div>`;
+  } else {
+    // Group by month
+    const byMonth = {};
+    bUsages.forEach(u => {
+      if (!byMonth[u.month]) byMonth[u.month] = [];
+      byMonth[u.month].push(u);
+    });
+    container.innerHTML = Object.entries(byMonth)
+      .sort(([a],[b]) => b > a ? 1 : -1)
+      .map(([month, entries]) => `
+        <div style="margin-bottom:18px">
+          <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px">${monthLabel(month)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${entries.map(u => `<span class="tag tag-gold">${formatDate(u.date)}</span>`).join('')}
+          </div>
+        </div>`).join('') +
+      `<div style="font-size:11px;color:var(--text-muted);padding-top:12px;border-top:1px solid var(--border)">
+        Total : <strong style="color:var(--gold)">${bUsages.length}</strong> utilisation${bUsages.length!==1?'s':''}
+      </div>`;
+  }
+  openModal('modal-history');
+}
+
+// ========================================
+// IMPORT MODAL
+// ========================================
+function showImportModal() {
+  document.getElementById('import-paste-text').value = '';
+  switchImportTab('paste', document.querySelector('#modal-import .tab'));
+  openModal('modal-import');
+}
+
+function switchImportTab(tab, el) {
+  document.getElementById('import-tab-paste').style.display = tab === 'paste' ? 'block' : 'none';
+  document.getElementById('import-tab-file').style.display = tab === 'file' ? 'block' : 'none';
+  document.querySelectorAll('#modal-import .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function importFromPaste() {
+  const text = document.getElementById('import-paste-text').value.trim();
+  if (!text) { toast('Aucun texte à importer', 'error'); return; }
+  const NL = String.fromCharCode(10);
+  const blocks = text.split(NL + NL).map(b => b.trim()).filter(Boolean);
+  if (!blocks.length) { toast('Aucun sujet détecté', 'error'); return; }
+  let imported = 0;
+  try {
+    for (const block of blocks) {
+      const lines = block.split(NL).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) continue;
+      const title = lines[0].replace(/^\d+[.)]+\s*/, '').trim();
+      const details = lines.slice(1).join(NL).trim();
+      if (!title) continue;
+      if (demoMode) {
+        if (!demoData.subjects[currentBulletinId]) demoData.subjects[currentBulletinId] = {};
+        const nid = 'demo_' + Date.now() + '_' + imported;
+        demoData.subjects[currentBulletinId][nid] = { title, details, prayedDates: [] };
+      } else {
+        await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').add({
+          title, details, prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      imported++;
+    }
+    if (demoMode) saveDemo();
+    closeModal('modal-import');
+    toast(`${imported} sujet${imported!==1?'s':''} importé${imported!==1?'s':''} ✦`, 'success');
+    loadSubjects();
   } catch(e) { toast('Erreur: ' + e.message, 'error'); }
 }
 
