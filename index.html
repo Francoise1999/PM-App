@@ -283,9 +283,10 @@ body::before {
   padding: 20px;
 }
 .modal-overlay.open { display: flex; }
-/* Subject modal appears on top of detail modal */
-#modal-subject { z-index: 1100; }
-#modal-confirm { z-index: 1200; }
+/* Stacked modals - subject/confirm are inside detail overlay */
+#modal-detail  { z-index: 1000; }
+#modal-subject { z-index: 10; background: rgba(0,0,0,0.6); backdrop-filter:blur(4px); border-radius:12px; }
+#modal-confirm { z-index: 11; background: rgba(0,0,0,0.6); backdrop-filter:blur(4px); border-radius:12px; }
 .modal {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -735,30 +736,10 @@ body::before {
   </div>
 </div>
 
-<!-- Subject Modal -->
-<div class="modal-overlay" id="modal-subject">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal('modal-subject')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-    <div class="modal-title" id="subject-modal-title">Nouveau sujet</div>
-    <input type="hidden" id="subject-id">
-    <input type="hidden" id="subject-bulletin-id">
-    <div class="form-group">
-      <label class="form-label">Titre du sujet *</label>
-      <input class="input" id="subject-title" placeholder="ex: Santé de ma famille..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Détails / Versets</label>
-      <textarea class="textarea" id="subject-details" placeholder="Notes, versets bibliques, détails..." style="min-height:120px"></textarea>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-subject')">Annuler</button>
-      <button class="btn btn-gold" onclick="saveSubject()">Enregistrer</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- Bulletin Detail Modal -->
-<div class="modal-overlay" id="modal-detail">
+<div class="modal-overlay" id="modal-detail" style="position:fixed">
   <div class="modal" style="max-width:700px">
     <button class="modal-close" onclick="closeModal('modal-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px">
@@ -785,6 +766,41 @@ body::before {
     </div>
     <div id="subjects-list"></div>
   </div>
+
+  <!-- Subject Modal (inside detail overlay for correct stacking) -->
+  <div class="modal-overlay" id="modal-subject" style="position:absolute;border-radius:12px">
+    <div class="modal" style="max-width:520px">
+      <button class="modal-close" onclick="closeModal('modal-subject')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <div class="modal-title" id="subject-modal-title">Nouveau sujet</div>
+      <input type="hidden" id="subject-id">
+      <input type="hidden" id="subject-bulletin-id">
+      <div class="form-group">
+        <label class="form-label">Titre du sujet *</label>
+        <input class="input" id="subject-title" placeholder="ex: Santé de ma famille..." />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Détails / Versets</label>
+        <textarea class="textarea" id="subject-details" placeholder="Notes, versets bibliques, détails..." style="min-height:120px"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('modal-subject')">Annuler</button>
+        <button class="btn btn-gold" onclick="saveSubject()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Modal (inside detail overlay for correct stacking) -->
+  <div class="modal-overlay" id="modal-confirm" style="position:absolute;border-radius:12px">
+    <div class="modal" style="max-width:380px">
+      <div class="modal-title" id="confirm-title">Confirmer</div>
+      <div id="confirm-msg" style="font-size:12px;color:var(--text-muted);margin-bottom:24px"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('modal-confirm')">Annuler</button>
+        <button class="btn btn-danger" id="confirm-btn">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Objectif Modal -->
@@ -807,17 +823,7 @@ body::before {
   </div>
 </div>
 
-<!-- Confirm Modal -->
-<div class="modal-overlay" id="modal-confirm">
-  <div class="modal" style="max-width:380px">
-    <div class="modal-title" id="confirm-title">Confirmer</div>
-    <div id="confirm-msg" style="font-size:12px;color:var(--text-muted);margin-bottom:24px"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-confirm')">Annuler</button>
-      <button class="btn btn-danger" id="confirm-btn">Supprimer</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- Toast -->
 <div id="toast"></div>
@@ -1646,17 +1652,10 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Close modals on overlay click (only if no higher-z modal is open)
+// Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => {
-    if (e.target !== el) return;
-    // Don't close detail modal if subject/confirm modal is open on top
-    if (el.id === 'modal-detail') {
-      const subjectOpen = document.getElementById('modal-subject').classList.contains('open');
-      const confirmOpen = document.getElementById('modal-confirm').classList.contains('open');
-      if (subjectOpen || confirmOpen) return;
-    }
-    el.classList.remove('open');
+    if (e.target === el) el.classList.remove('open');
   });
 });
 </script>
