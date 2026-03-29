@@ -918,7 +918,7 @@ body::before {
 // ========================================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB-PkBSnKCHyTdoJXxXavCMZm2MQF6uHG8",
-  authDomain: "pm-app-b3237.firebaseapp.com",
+  authDomain: "francoise1999.github.io",
   projectId: "pm-app-b3237",
   storageBucket: "pm-app-b3237.firebasestorage.app",
   messagingSenderId: "477839679394",
@@ -984,14 +984,27 @@ function signInGoogle() {
   const loadingEl = document.getElementById('config-loading');
   const errorEl = document.getElementById('config-error');
   loadingEl.style.display = 'block';
-  loadingEl.textContent = 'Redirection vers Google...';
+  loadingEl.textContent = 'Connexion en cours...';
   errorEl.style.display = 'none';
   const provider = new firebase.auth.GoogleAuthProvider();
-  // Use redirect instead of popup — works on all browsers & GitHub Pages
-  firebase.auth().signInWithRedirect(provider).catch(e => {
-    loadingEl.style.display = 'none';
-    showConfigError('Erreur: ' + e.message);
-  });
+  provider.setCustomParameters({ prompt: 'select_account' });
+  firebase.auth().signInWithPopup(provider)
+    .then(result => {
+      // onAuthStateChanged handles the rest
+    })
+    .catch(e => {
+      // Popup blocked — fall back to redirect
+      if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
+        loadingEl.textContent = 'Redirection vers Google...';
+        firebase.auth().signInWithRedirect(provider).catch(e2 => {
+          loadingEl.style.display = 'none';
+          showConfigError('Erreur: ' + e2.message);
+        });
+      } else {
+        loadingEl.style.display = 'none';
+        showConfigError('Erreur: ' + e.message);
+      }
+    });
 }
 
 function signOut() {
