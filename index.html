@@ -561,6 +561,89 @@ body::before {
 .tab.active { background: var(--surface3); color: var(--text); }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
+
+/* ── IMPORTUNITÉ ── */
+.importunite-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 14px;
+  transition: border-color var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.importunite-card::after {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--accent), var(--gold));
+}
+.importunite-card:hover { border-color: var(--border-hover); }
+.importunite-card.completed { border-color: rgba(94,196,122,0.3); }
+.importunite-card.completed::after { background: var(--green); }
+
+.imp-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; font-weight: 400;
+  color: var(--text); margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+.imp-details { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.7; }
+
+.imp-progress-section { margin-bottom: 14px; }
+.imp-numbers {
+  display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px;
+}
+.imp-current {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px; font-weight: 300;
+  color: var(--gold); line-height: 1;
+}
+.imp-objectif {
+  font-size: 13px; color: var(--text-muted);
+}
+.imp-pct {
+  margin-left: auto;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; font-weight: 300;
+  color: var(--text-dim);
+}
+.imp-bar-wrap {
+  background: var(--surface3); border-radius: 20px; height: 8px; overflow: hidden;
+}
+.imp-bar {
+  height: 100%; border-radius: 20px;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+}
+.imp-bar.done { background: var(--green); }
+
+.imp-sessions {
+  font-size: 10px; color: var(--text-dim);
+  margin-top: 6px; letter-spacing: 0.06em;
+}
+.imp-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+}
+.imp-add-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 18px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(139,110,196,0.3);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.imp-add-btn:hover { background: rgba(139,110,196,0.25); border-color: var(--accent); }
+.imp-add-btn.done { background: rgba(94,196,122,0.1); border-color: rgba(94,196,122,0.3); color: var(--green); cursor: default; }
 </style>
 </head>
 <body>
@@ -621,6 +704,10 @@ body::before {
       <div class="nav-item" onclick="navigate('objectifs')" data-view="objectifs">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         Objectifs
+      </div>
+      <div class="nav-item" onclick="navigate('importunite')" data-view="importunite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
+        Importunité
       </div>
     </div>
     <div class="sidebar-footer">
@@ -707,6 +794,11 @@ body::before {
         <div class="divider"></div>
         <div class="section-title" style="margin-bottom:16px">Historique des objectifs</div>
         <div id="objectifs-history"></div>
+      </div>
+
+      <!-- IMPORTUNITÉ -->
+      <div class="view" id="view-importunite">
+        <div id="importunite-list"></div>
       </div>
 
     </div>
@@ -825,6 +917,49 @@ body::before {
 
 
 
+<!-- Importunité Modal (create/edit) -->
+<div class="modal-overlay" id="modal-importunite">
+  <div class="modal" style="max-width:500px">
+    <button class="modal-close" onclick="closeModal('modal-importunite')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title" id="importunite-modal-title">Nouveau sujet d'importunité</div>
+    <input type="hidden" id="importunite-id">
+    <div class="form-group">
+      <label class="form-label">Sujet de prière *</label>
+      <input class="input" id="importunite-title" placeholder="ex: Seigneur bénis-moi avec un stage..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Détails / Versets</label>
+      <textarea class="textarea" id="importunite-details" placeholder="Notes, versets, contexte..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Objectif total (nombre de répétitions)</label>
+      <input class="input" id="importunite-objectif" type="number" min="1" placeholder="ex: 1000" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-importunite')">Annuler</button>
+      <button class="btn btn-gold" onclick="saveImportunite()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Importunité Session Modal (ajouter des répétitions) -->
+<div class="modal-overlay" id="modal-session">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="closeModal('modal-session')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title" id="session-title-display">Ajouter des répétitions</div>
+    <div id="session-current-info" style="font-size:11px;color:var(--text-muted);margin-bottom:20px"></div>
+    <input type="hidden" id="session-importunite-id">
+    <div class="form-group">
+      <label class="form-label">Combien de fois as-tu prié aujourd'hui ?</label>
+      <input class="input" id="session-count" type="number" min="1" placeholder="ex: 50" style="font-size:20px;text-align:center;padding:14px" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-session')">Annuler</button>
+      <button class="btn btn-gold" onclick="saveSession()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -847,7 +982,7 @@ const FIREBASE_CONFIG = {
 let db = null;
 let uid = null;
 let demoMode = false;
-let demoData = { bulletins: {}, subjects: {}, usages: {}, prayedSubjects: {}, objectifs: {} };
+let demoData = { bulletins: {}, subjects: {}, usages: {}, prayedSubjects: {}, objectifs: {}, importunite: {} };
 let currentView = 'dashboard';
 let currentBulletinId = null;
 let chartBulletins = null;
@@ -1006,7 +1141,7 @@ function navigate(view) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
   document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
-  const titles = { dashboard: 'Tableau de bord', bulletins: 'Bulletins de prière', suivi: 'Suivi mensuel', statistiques: 'Statistiques', objectifs: 'Objectifs' };
+  const titles = { dashboard: 'Tableau de bord', bulletins: 'Bulletins de prière', suivi: 'Suivi mensuel', statistiques: 'Statistiques', objectifs: 'Objectifs', importunite: 'Importunité' };
   document.getElementById('topbar-title').textContent = titles[view];
   setupTopbarActions(view);
   // Close sidebar on mobile
@@ -1017,6 +1152,7 @@ function navigate(view) {
   else if (view === 'suivi') loadSuivi();
   else if (view === 'statistiques') loadStats();
   else if (view === 'objectifs') loadObjectifs();
+  else if (view === 'importunite') loadImportunite();
 }
 
 function setupTopbarActions(view) {
@@ -1024,6 +1160,8 @@ function setupTopbarActions(view) {
   c.innerHTML = '';
   if (view === 'bulletins') {
     c.innerHTML = `<button class="btn btn-gold" onclick="showBulletinModal()">+ Nouveau bulletin</button>`;
+  } else if (view === 'importunite') {
+    c.innerHTML = `<button class="btn btn-gold" onclick="showImportuniteModal()">+ Nouveau sujet</button>`;
   }
 }
 
@@ -1068,6 +1206,7 @@ async function loadDashboard() {
   const objectif = await getObjectifForMonth(cm);
 
   // Stats
+  const impStats = await getImportuniteStats();
   const stats = document.getElementById('dashboard-stats');
   const pct = objectif ? Math.min(100, Math.round(thisMonthUsages.length / objectif * 100)) : null;
   stats.innerHTML = `
@@ -1081,10 +1220,11 @@ async function loadDashboard() {
       ${objectif ? `<div class="stat-sub">Objectif: ${objectif}</div><div class="progress-bar-wrap" style="margin-top:8px"><div class="progress-bar" style="width:${pct}%"></div></div>` : ''}
     </div>
     <div class="stat-card">
-      <div class="stat-value">${usages.length}</div>
-      <div class="stat-label">Utilisations total</div>
+      <div class="stat-value">${impStats.total}</div>
+      <div class="stat-label">Sujets d'importunité</div>
+      <div class="stat-sub">${impStats.completed} accompli${impStats.completed!==1?'s':''}</div>
     </div>
-    ${objectif ? `<div class="stat-card"><div class="stat-value">${pct}%</div><div class="stat-label">Objectif atteint</div><div class="stat-sub">${monthLabel(cm)}</div></div>` : ''}
+    ${objectif ? `<div class="stat-card"><div class="stat-value">${pct}%</div><div class="stat-label">Objectif mensuel</div><div class="stat-sub">${monthLabel(cm)}</div></div>` : ''}
   `;
 
   // Recent bulletins
@@ -1629,6 +1769,230 @@ function confirmDelete(type, id, name) {
 }
 
 // ========================================
+// IMPORTUNITÉ
+// ========================================
+async function loadImportunite() {
+  let items = [];
+  if (demoMode) {
+    items = Object.entries(demoData.importunite || {}).map(([id,d]) => ({id,...d}));
+  } else {
+    const snap = await db.collection('users').doc(uid).collection('importunite').orderBy('createdAt','desc').get();
+    items = snap.docs.map(d => ({id: d.id, ...d.data()}));
+  }
+
+  const container = document.getElementById('importunite-list');
+
+  if (!items.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
+        <h3>Aucun sujet d'importunité</h3>
+        <p>Crée un sujet avec un objectif de répétitions</p>
+      </div>`;
+    return;
+  }
+
+  // Sort: incomplete first, then completed
+  items.sort((a,b) => {
+    const aDone = (a.total||0) >= (a.objectif||1);
+    const bDone = (b.total||0) >= (b.objectif||1);
+    if (aDone !== bDone) return aDone ? 1 : -1;
+    return 0;
+  });
+
+  container.innerHTML = items.map(item => {
+    const total = item.total || 0;
+    const objectif = item.objectif || 1;
+    const pct = Math.min(100, Math.round(total / objectif * 100));
+    const done = total >= objectif;
+    const sessions = item.sessions || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayCount = sessions.filter(s => s.date === todayStr).reduce((a,s) => a + s.count, 0);
+    const lastSession = sessions.length ? sessions[sessions.length-1] : null;
+
+    return `
+      <div class="importunite-card ${done ? 'completed' : ''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div class="imp-title">${esc(item.title)}</div>
+          ${done ? '<span class="tag tag-green">✦ Accompli</span>' : ''}
+        </div>
+        ${item.details ? `<div class="imp-details">${esc(item.details)}</div>` : ''}
+
+        <div class="imp-progress-section">
+          <div class="imp-numbers">
+            <div class="imp-current">${total.toLocaleString('fr-FR')}</div>
+            <div class="imp-objectif">/ ${objectif.toLocaleString('fr-FR')} répétitions</div>
+            <div class="imp-pct">${pct}%</div>
+          </div>
+          <div class="imp-bar-wrap">
+            <div class="imp-bar ${done ? 'done' : ''}" style="width:${pct}%"></div>
+          </div>
+          <div class="imp-sessions">
+            ${sessions.length} session${sessions.length!==1?'s':''} au total
+            ${todayCount ? ` · <span style="color:var(--gold)">${todayCount} aujourd'hui</span>` : ''}
+            ${lastSession && !todayCount ? ` · Dernière session: ${formatDate(lastSession.date)} (${lastSession.count})` : ''}
+          </div>
+        </div>
+
+        <div class="imp-footer">
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" onclick="showImportuniteModal('${item.id}')">Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="confirmDeleteImportunite('${item.id}','${esc(item.title)}')">Supprimer</button>
+          </div>
+          <button class="imp-add-btn ${done ? 'done' : ''}" onclick="${done ? '' : `showSessionModal('${item.id}','${esc(item.title)}',${total},${objectif})`}">
+            ${done ? '✓ Objectif atteint' : '+ Ajouter des répétitions'}
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function showImportuniteModal(id = null) {
+  document.getElementById('importunite-id').value = id || '';
+  document.getElementById('importunite-title').value = '';
+  document.getElementById('importunite-details').value = '';
+  document.getElementById('importunite-objectif').value = '';
+  document.getElementById('importunite-modal-title').textContent = id ? 'Modifier le sujet' : 'Nouveau sujet d'importunité';
+  if (id) {
+    let item = null;
+    if (demoMode) item = demoData.importunite?.[id];
+    if (item) {
+      document.getElementById('importunite-title').value = item.title || '';
+      document.getElementById('importunite-details').value = item.details || '';
+      document.getElementById('importunite-objectif').value = item.objectif || '';
+    } else if (!demoMode) {
+      db.collection('users').doc(uid).collection('importunite').doc(id).get().then(snap => {
+        if (snap.exists) {
+          const d = snap.data();
+          document.getElementById('importunite-title').value = d.title || '';
+          document.getElementById('importunite-details').value = d.details || '';
+          document.getElementById('importunite-objectif').value = d.objectif || '';
+        }
+      });
+    }
+  }
+  openModal('modal-importunite');
+}
+
+async function saveImportunite() {
+  const title = document.getElementById('importunite-title').value.trim();
+  const objectif = parseInt(document.getElementById('importunite-objectif').value);
+  if (!title) { toast('Le titre est requis', 'error'); return; }
+  if (!objectif || objectif < 1) { toast('L'objectif doit être un nombre positif', 'error'); return; }
+  const id = document.getElementById('importunite-id').value;
+  const data = {
+    title,
+    details: document.getElementById('importunite-details').value.trim(),
+    objectif
+  };
+  try {
+    if (demoMode) {
+      if (!demoData.importunite) demoData.importunite = {};
+      if (id) {
+        Object.assign(demoData.importunite[id], data);
+      } else {
+        const nid = 'demo_imp_' + Date.now();
+        demoData.importunite[nid] = {...data, total: 0, sessions: [], createdAt: new Date().toISOString()};
+      }
+      saveDemo();
+    } else {
+      if (id) {
+        await db.collection('users').doc(uid).collection('importunite').doc(id).update(data);
+      } else {
+        await db.collection('users').doc(uid).collection('importunite').add({
+          ...data, total: 0, sessions: [],
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+    closeModal('modal-importunite');
+    toast(id ? 'Sujet modifié ✦' : 'Sujet créé ✦', 'success');
+    loadImportunite();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+function showSessionModal(id, title, current, objectif) {
+  document.getElementById('session-importunite-id').value = id;
+  document.getElementById('session-title-display').textContent = title;
+  document.getElementById('session-count').value = '';
+  const remaining = objectif - current;
+  document.getElementById('session-current-info').innerHTML = `
+    <span style="color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:16px">${current.toLocaleString('fr-FR')}</span>
+    <span> / ${objectif.toLocaleString('fr-FR')} répétitions · </span>
+    <span style="color:var(--text-muted)">Il en reste ${remaining.toLocaleString('fr-FR')}</span>`;
+  openModal('modal-session');
+  setTimeout(() => document.getElementById('session-count').focus(), 100);
+}
+
+async function saveSession() {
+  const id = document.getElementById('session-importunite-id').value;
+  const count = parseInt(document.getElementById('session-count').value);
+  if (!count || count < 1) { toast('Entre un nombre valide', 'error'); return; }
+  const today = new Date().toISOString().split('T')[0];
+  const session = { date: today, count };
+  try {
+    if (demoMode) {
+      const item = demoData.importunite[id];
+      if (!item) return;
+      item.total = (item.total || 0) + count;
+      if (!item.sessions) item.sessions = [];
+      item.sessions.push(session);
+      saveDemo();
+    } else {
+      await db.collection('users').doc(uid).collection('importunite').doc(id).update({
+        total: firebase.firestore.FieldValue.increment(count),
+        sessions: firebase.firestore.FieldValue.arrayUnion(session)
+      });
+    }
+    closeModal('modal-session');
+    toast(`+${count} répétitions ajoutées ✦`, 'success');
+    loadImportunite();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+function confirmDeleteImportunite(id, name) {
+  // Reuse the confirm modal (it's global)
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.style.cssText = 'position:fixed;z-index:2000;display:flex;';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:380px">
+      <div class="modal-title">Supprimer ce sujet ?</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:24px">"${name}" et tout son historique seront supprimés définitivement.</div>
+      <div class="modal-footer">
+        <button class="btn" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+        <button class="btn btn-danger" id="imp-confirm-delete">Supprimer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('imp-confirm-delete').onclick = async () => {
+    try {
+      if (demoMode) { delete demoData.importunite[id]; saveDemo(); }
+      else await db.collection('users').doc(uid).collection('importunite').doc(id).delete();
+      overlay.remove();
+      toast('Sujet supprimé', 'success');
+      loadImportunite();
+    } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+  };
+}
+
+// Also add importunite count to dashboard
+async function getImportuniteStats() {
+  let items = [];
+  if (demoMode) {
+    items = Object.values(demoData.importunite || {});
+  } else {
+    try {
+      const snap = await db.collection('users').doc(uid).collection('importunite').get();
+      items = snap.docs.map(d => d.data());
+    } catch(e) { return { total: 0, completed: 0 }; }
+  }
+  const completed = items.filter(i => (i.total||0) >= (i.objectif||1)).length;
+  return { total: items.length, completed };
+}
+
+// ========================================
 // UTILS
 // ========================================
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -1657,6 +2021,11 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => {
     if (e.target === el) el.classList.remove('open');
   });
+});
+
+// Enter key to submit session
+document.getElementById('session-count').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveSession();
 });
 </script>
 </body>
