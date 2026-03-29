@@ -283,6 +283,9 @@ body::before {
   padding: 20px;
 }
 .modal-overlay.open { display: flex; }
+/* Subject modal appears on top of detail modal */
+#modal-subject { z-index: 1100; }
+#modal-confirm { z-index: 1200; }
 .modal {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1198,7 +1201,7 @@ async function loadSubjects() {
   if (demoMode) {
     subjects = Object.entries(demoData.subjects[currentBulletinId] || {}).map(([id,d]) => ({id,...d}));
   } else {
-    const snap = await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).get();
+    const snap = await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').get();
     subjects = snap.docs.map(d => ({id: d.id, ...d.data()}));
   }
   const today = new Date().toISOString().split('T')[0];
@@ -1249,7 +1252,7 @@ async function praySubject(subjectId, bulletinId, alreadyPrayed) {
       const s = demoData.subjects[bulletinId]?.[subjectId];
       if (s) { s.prayedDates = [...(s.prayedDates||[]), today]; saveDemo(); }
     } else {
-      await db.collection(`users/${uid}/bulletins/${bulletinId}/subjects`).doc(subjectId).update({
+      await db.collection('users').doc(uid).collection('bulletins').doc(bulletinId).collection('subjects').doc(subjectId).update({
         prayedDates: firebase.firestore.FieldValue.arrayUnion(today)
       });
     }
@@ -1276,7 +1279,9 @@ async function saveSubject() {
   const title = document.getElementById('subject-title').value.trim();
   if (!title) { toast('Le titre est requis', 'error'); return; }
   const id = document.getElementById('subject-id').value;
-  const bId = currentBulletinId;
+  // Read bulletinId from both the hidden field and the state variable as fallback
+  const bId = document.getElementById('subject-bulletin-id').value || currentBulletinId;
+  if (!bId) { toast('Erreur: bulletin introuvable', 'error'); return; }
   const data = { title, details: document.getElementById('subject-details').value.trim() };
   try {
     if (demoMode) {
@@ -1285,13 +1290,20 @@ async function saveSubject() {
       else { const nid = 'demo_' + Date.now(); demoData.subjects[bId][nid] = {...data, prayedDates: []}; }
       saveDemo();
     } else {
-      if (id) await db.collection(`users/${uid}/bulletins/${bId}/subjects`).doc(id).update(data);
-      else await db.collection(`users/${uid}/bulletins/${bId}/subjects`).add({...data, prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+      const subCol = db.collection('users').doc(uid).collection('bulletins').doc(bId).collection('subjects');
+      if (id) {
+        await subCol.doc(id).update(data);
+      } else {
+        await subCol.add({...data, prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+      }
     }
     closeModal('modal-subject');
-    toast(id ? 'Sujet modifié' : 'Sujet ajouté', 'success');
-    loadSubjects();
-  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+    toast(id ? 'Sujet modifié ✦' : 'Sujet ajouté ✦', 'success');
+    await loadSubjects();
+  } catch(e) {
+    console.error('saveSubject error:', e);
+    toast('Erreur: ' + e.message, 'error');
+  }
 }
 
 function confirmDeleteSubject(id, name) {
@@ -1301,7 +1313,7 @@ function confirmDeleteSubject(id, name) {
   document.getElementById('confirm-btn').onclick = async () => {
     try {
       if (demoMode) { delete demoData.subjects[currentBulletinId]?.[id]; saveDemo(); }
-      else await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).doc(id).delete();
+      else await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').doc(id).delete();
       closeModal('modal-confirm'); toast('Sujet supprimé', 'success'); loadSubjects();
     } catch(e) { toast('Erreur: ' + e.message, 'error'); }
   };
@@ -1313,7 +1325,7 @@ function confirmDeleteSubject(id, name) {
 async function exportSubjectsDocx() {
   let subjects = [];
   if (demoMode) subjects = Object.values(demoData.subjects[currentBulletinId] || {});
-  else { const snap = await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).get(); subjects = snap.docs.map(d => d.data()); }
+  else { const snap = await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').get(); subjects = snap.docs.map(d => d.data()); }
   const b = await getDoc2('bulletins', currentBulletinId);
   const { Document, Paragraph, TextRun, HeadingLevel, Packer } = docx;
   const doc = new Document({
@@ -1351,7 +1363,7 @@ async function importSubjectsDocx(event) {
               const nid = 'demo_' + Date.now() + '_' + imported;
               demoData.subjects[currentBulletinId][nid] = { title, details: '', prayedDates: [] };
             } else {
-              await db.collection(`users/${uid}/bulletins/${currentBulletinId}/subjects`).add({ title, details: '', prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+              await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').add({ title, details: '', prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp() });
             }
             imported++;
           }
@@ -1398,7 +1410,7 @@ async function loadSuivi() {
     if (demoMode) subjects = Object.entries(demoData.subjects[bId] || {}).map(([id,d]) => ({id,...d}));
     else {
       try {
-        const snap = await db.collection(`users/${uid}/bulletins/${bId}/subjects`).get();
+        const snap = await db.collection('users').doc(uid).collection('bulletins').doc(bId).collection('subjects').get();
         subjects = snap.docs.map(d => ({id: d.id, ...d.data()}));
       } catch(e) { subjects = []; }
     }
@@ -1489,7 +1501,7 @@ async function loadStats() {
   for (const b of bulletins) {
     let subs = [];
     if (demoMode) subs = Object.values(demoData.subjects[b.id] || {});
-    else { try { const snap = await db.collection(`users/${uid}/bulletins/${b.id}/subjects`).get(); subs = snap.docs.map(d => d.data()); } catch(e) { continue; } }
+    else { try { const snap = await db.collection('users').doc(uid).collection('bulletins').doc(b.id).collection('subjects').get(); subs = snap.docs.map(d => d.data()); } catch(e) { continue; } }
     subs.forEach(s => {
       const count = (s.prayedDates || []).filter(d => d.startsWith(month)).length;
       if (count > 0) allSubjectPrayers.push({ title: s.title, count });
@@ -1599,7 +1611,7 @@ function confirmDelete(type, id, name) {
       } else {
         await col('bulletins').doc(id).delete();
         // Delete subcollection subjects
-        const snap = await db.collection(`users/${uid}/bulletins/${id}/subjects`).get();
+        const snap = await db.collection('users').doc(uid).collection('bulletins').doc(id).collection('subjects').get();
         await Promise.all(snap.docs.map(d => d.ref.delete()));
       }
       closeModal('modal-confirm');
@@ -1634,9 +1646,18 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Close modals on overlay click
+// Close modals on overlay click (only if no higher-z modal is open)
 document.querySelectorAll('.modal-overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+  el.addEventListener('click', e => {
+    if (e.target !== el) return;
+    // Don't close detail modal if subject/confirm modal is open on top
+    if (el.id === 'modal-detail') {
+      const subjectOpen = document.getElementById('modal-subject').classList.contains('open');
+      const confirmOpen = document.getElementById('modal-confirm').classList.contains('open');
+      if (subjectOpen || confirmOpen) return;
+    }
+    el.classList.remove('open');
+  });
 });
 </script>
 </body>
