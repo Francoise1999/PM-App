@@ -324,6 +324,7 @@ body::before {
   margin-bottom: 8px;
   transition: all var(--transition);
   position: relative;
+  word-break: break-word;
 }
 .subject-item:hover { border-color: var(--border-hover); }
 .subject-item.prayed-today { border-left: 3px solid var(--gold); background: var(--gold-dim); }
@@ -523,17 +524,119 @@ body::before {
 /* ── MOBILE ── */
 #menu-toggle { display: none; }
 @media (max-width: 768px) {
+  /* Sidebar */
   #sidebar { position: fixed; left: -220px; height: 100%; z-index: 200; transition: left 0.3s ease; }
   #sidebar.open { left: 0; }
   #menu-toggle { display: flex; }
-  .content { padding: 16px; }
-  .topbar { padding: 12px 16px; }
+
+  /* Layout */
+  .content { padding: 12px; }
+  .topbar { padding: 10px 12px; }
   .form-row { grid-template-columns: 1fr; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .card-grid { grid-template-columns: 1fr; }
+
+  /* Modal — plein écran sur mobile */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    border-radius: 18px 18px 0 0;
+    max-width: 100% !important;
+    width: 100%;
+    max-height: 92vh;
+    padding: 20px 16px 32px;
+  }
+  .modal-close { top: 14px; right: 14px; }
+
+  /* Detail modal header — stack buttons vertically on mobile */
+  #modal-detail .modal {
+    padding-top: 18px;
+  }
+  #modal-detail [style*="display:flex;gap:6px"] {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+
+  /* Buttons in detail header — smaller on mobile */
+  #modal-detail .btn-sm {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  /* Subject items */
+  .subject-header { flex-wrap: wrap; gap: 8px; }
+  .subject-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .subject-actions { width: 100%; display: flex; gap: 6px; }
+  .subject-actions .btn { flex: 1; justify-content: center; }
+
+  /* Subject pray button — full width on mobile */
+  .subject-header > div:last-child { width: 100%; }
+  .subject-header > div:last-child .btn { width: 100%; justify-content: center; padding: 10px; }
+
+  /* Bulletin cards */
+  .bulletin-card-actions { flex-wrap: wrap; }
+  .bulletin-card-actions .btn { flex: 1; justify-content: center; }
+
+  /* Stats */
+  .stat-value { font-size: 28px; }
+  .stat-card { padding: 14px 16px; }
+
+  /* Importunité */
+  .imp-card-header { flex-wrap: wrap; }
+  .imp-numbers { flex-wrap: wrap; }
+  .imp-current { font-size: 32px; }
+  .imp-add-row { flex-direction: column; }
+  .imp-add-row .btn { width: 100%; justify-content: center; }
+
+  /* Config screen */
+  .config-box { padding: 24px 20px; }
+
+  /* Topbar title smaller */
+  .topbar-title { font-size: 16px; }
+
+  /* Section header */
+  .section-header { flex-wrap: wrap; gap: 8px; }
+
+  /* Tabs */
+  .tabs { flex-wrap: wrap; }
+
+  /* Form */
+  .input, .textarea, .select { font-size: 16px; } /* prevents iOS zoom */
+}
+
+/* Extra small screens */
+@media (max-width: 380px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .modal { padding: 16px 14px 28px; }
 }
 
 
+
+/* ── DETAIL MODAL HEADER ── */
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.detail-header-info { flex: 1; min-width: 0; }
+.detail-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 768px) {
+  .detail-header { flex-direction: column; gap: 10px; }
+  .detail-header-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .detail-header-actions .btn { justify-content: center; font-size: 11px; }
+}
 
 /* ── SECTION HEADER ── */
 .section-header {
@@ -750,25 +853,25 @@ body::before {
 <div class="modal-overlay" id="modal-detail" style="position:fixed">
   <div class="modal" style="max-width:700px">
     <button class="modal-close" onclick="closeModal('modal-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px">
-      <div>
+    <div class="detail-header">
+      <div class="detail-header-info">
         <div class="modal-title" id="detail-title" style="margin-bottom:4px"></div>
         <div id="detail-desc" style="font-size:11px;color:var(--text-muted)"></div>
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;margin-top:4px;flex-wrap:wrap;justify-content:flex-end">
-        <button class="btn btn-sm" onclick="showBulletinHistory()" title="Historique d'utilisation">
+      <div class="detail-header-actions">
+        <button class="btn btn-sm" onclick="showBulletinHistory()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           Historique
         </button>
-        <button class="btn btn-sm" onclick="exportSubjectsDocx()" title="Exporter Word">
+        <button class="btn btn-sm" onclick="exportSubjectsDocx()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Exporter
         </button>
-        <button class="btn btn-sm" onclick="showImportModal()" title="Importer des sujets">
+        <button class="btn btn-sm" onclick="showImportModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           Importer
         </button>
-        <button class="btn btn-sm btn-danger" id="detail-delete-btn" onclick="deleteBulletinFromDetail()" title="Supprimer ce bulletin">
+        <button class="btn btn-sm btn-danger" id="detail-delete-btn" onclick="deleteBulletinFromDetail()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           Supprimer
         </button>
