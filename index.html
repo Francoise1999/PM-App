@@ -971,9 +971,10 @@ let chartSubjects = null;
     const auth = firebase.auth();
 
     function startApp(user) {
+      if (uid) return; // already started
       uid = user.uid;
-      const photoURL = user.photoURL;
-      const name = user.displayName || user.email || 'Utilisateur';
+      var photoURL = user.photoURL;
+      var name = user.displayName || user.email || 'Utilisateur';
       document.getElementById('user-info').innerHTML =
         '<div style="display:flex;align-items:center;gap:6px">' +
         (photoURL ? '<img src="' + photoURL + '" style="width:20px;height:20px;border-radius:50%">' : '') +
@@ -985,23 +986,13 @@ let chartSubjects = null;
       navigate('dashboard');
     }
 
-    // Step 1: check if we're returning from a redirect
-    auth.getRedirectResult().then(function(result) {
-      if (result && result.user) {
-        // Coming back from Google redirect — sign-in successful
-        startApp(result.user);
-      }
-      // If no redirect result, step 2 (onAuthStateChanged) handles existing sessions
-    }).catch(function(e) {
-      document.getElementById('config-loading').style.display = 'none';
-      showConfigError('Erreur: ' + e.message);
-    });
-
-    // Step 2: watch for existing session (already logged in)
+    // onAuthStateChanged handles ALL cases:
+    // — existing session on page load
+    // — after popup sign-in
+    // — after redirect sign-in (Firebase sets the session before firing this)
     auth.onAuthStateChanged(function(user) {
       document.getElementById('config-loading').style.display = 'none';
-      if (user && !uid) {
-        // Session already exists (returning user, not from redirect)
+      if (user) {
         startApp(user);
       }
     });
@@ -1012,39 +1003,31 @@ let chartSubjects = null;
 })();
 
 function signInGoogle() {
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const loadingEl = document.getElementById('config-loading');
-  const errorEl = document.getElementById('config-error');
+  var loadingEl = document.getElementById('config-loading');
+  var errorEl = document.getElementById('config-error');
   errorEl.style.display = 'none';
-  const provider = new firebase.auth.GoogleAuthProvider();
+  loadingEl.style.display = 'block';
+  loadingEl.textContent = 'Connexion en cours...';
+
+  var provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope('email');
   provider.addScope('profile');
 
-  if (isMobile) {
-    // Mobile: use redirect (popup blocked by mobile browsers)
-    loadingEl.style.display = 'block';
-    loadingEl.textContent = 'Redirection vers Google...';
-    firebase.auth().signInWithRedirect(provider).catch(function(e) {
+  // signInWithPopup works on desktop AND mobile when triggered by a direct user click
+  firebase.auth().signInWithPopup(provider)
+    .then(function() {
+      // onAuthStateChanged fires automatically after this — nothing to do here
+    })
+    .catch(function(e) {
       loadingEl.style.display = 'none';
-      showConfigError('Erreur: ' + e.message);
-    });
-  } else {
-    // Desktop: use popup (faster, no page reload)
-    loadingEl.style.display = 'block';
-    loadingEl.textContent = 'Connexion en cours...';
-    firebase.auth().signInWithPopup(provider).then(function(result) {
-      // onAuthStateChanged handles the rest
-    }).catch(function(e) {
-      if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
-        // Fallback to redirect if popup blocked
-        loadingEl.textContent = 'Redirection vers Google...';
-        firebase.auth().signInWithRedirect(provider);
+      if (e.code === 'auth/popup-blocked') {
+        showConfigError('Popup bloqué par le navigateur. Active les popups pour ce site.');
+      } else if (e.code === 'auth/popup-closed-by-user') {
+        showConfigError('Connexion annulée.');
       } else {
-        loadingEl.style.display = 'none';
         showConfigError('Erreur: ' + e.message);
       }
     });
-  }
 }
 
 function signOut() {
