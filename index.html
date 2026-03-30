@@ -588,17 +588,7 @@ body::before {
       Se connecter avec Google
     </button>
 
-    <div style="display:flex;align-items:center;gap:10px;margin:16px 0">
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-      <span style="font-size:10px;color:var(--text-dim);letter-spacing:0.1em">OU</span>
-      <div style="flex:1;height:1px;background:var(--border)"></div>
-    </div>
-
-    <button class="btn" style="width:100%;justify-content:center" onclick="useDemo()">
-      Mode démo (données locales)
-    </button>
-
-    <div id="config-error" style="color:var(--red);font-size:11px;margin-top:12px;display:none;text-align:center"></div>
+    <div id="config-error" style="color:var(--red);font-size:11px;margin-top:14px;display:none;text-align:center"></div>
     <div id="config-loading" style="color:var(--text-muted);font-size:11px;margin-top:12px;display:block;text-align:center">Vérification de la session...</div>
   </div>
 </div>
@@ -1021,7 +1011,9 @@ function signInGoogle() {
   loadingEl.textContent = 'Redirection vers Google...';
   errorEl.style.display = 'none';
   const provider = new firebase.auth.GoogleAuthProvider();
-  // Use redirect instead of popup — works on all browsers & GitHub Pages
+  provider.addScope('email');
+  provider.addScope('profile');
+  // Always use redirect — popup is blocked on mobile browsers
   firebase.auth().signInWithRedirect(provider).catch(e => {
     loadingEl.style.display = 'none';
     showConfigError('Erreur: ' + e.message);
@@ -1036,27 +1028,14 @@ function signOut() {
   });
 }
 
-function useDemo() {
-  demoMode = true;
-  uid = 'demo';
-  const saved = localStorage.getItem('priere_demo');
-  if (saved) demoData = JSON.parse(saved);
-  document.getElementById('config-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  document.getElementById('user-info').textContent = 'Mode démo (local)';
-  document.getElementById('signout-btn').style.display = 'none';
-  populateMonthSelectors();
-  navigate('dashboard');
-}
+
 
 function showConfigError(msg) {
   const el = document.getElementById('config-error');
   el.textContent = msg; el.style.display = 'block';
 }
 
-function saveDemo() {
-  if (demoMode) localStorage.setItem('priere_demo', JSON.stringify(demoData));
-}
+
 
 // ========================================
 // FIRESTORE HELPERS
