@@ -17,6 +17,9 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 
 <style>
@@ -1009,17 +1012,22 @@ body::before {
     <div class="tabs" style="margin-bottom:20px">
       <div class="tab active" onclick="switchImportTab('paste',this)">Coller du texte</div>
       <div class="tab" onclick="switchImportTab('file',this)">Fichier Word</div>
+      <div class="tab" onclick="switchImportTab('pdf',this)">Fichier PDF</div>
     </div>
+
+    <!-- Tab: coller du texte -->
     <div id="import-tab-paste">
       <div class="form-group">
         <label class="form-label">Colle tes sujets ici — sépare chaque sujet par une ligne vide</label>
-        <textarea class="textarea" id="import-paste-text" style="min-height:200px;font-size:12px" placeholder="Seigneur bénis ma famille&#10;&#10;Guérison de mon frère&#10;&#10;Trouver un stage cet été&#10;&#10;Réveil spirituel à l'église..."></textarea>
+        <textarea class="textarea" id="import-paste-text" style="min-height:180px;font-size:12px" placeholder="Seigneur bénis ma famille&#10;&#10;Guérison de mon frère&#10;&#10;Trouver un stage cet été&#10;&#10;Réveil spirituel à l'église..."></textarea>
       </div>
       <div class="modal-footer" style="margin-top:0">
         <button class="btn" onclick="closeModal('modal-import')">Annuler</button>
         <button class="btn btn-gold" onclick="importFromPaste()">Importer</button>
       </div>
     </div>
+
+    <!-- Tab: fichier Word -->
     <div id="import-tab-file" style="display:none">
       <div class="form-group">
         <label class="form-label">Sélectionne un fichier Word (.docx)</label>
@@ -1030,6 +1038,34 @@ body::before {
         </label>
         <div style="font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.7">
           Chaque ligne non-vide du document sera importée comme un sujet séparé.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: fichier PDF -->
+    <div id="import-tab-pdf" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Sélectionne un fichier PDF</label>
+        <label class="btn" style="cursor:pointer;width:100%;justify-content:center;margin-top:8px" id="pdf-pick-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          Choisir un fichier .pdf
+          <input type="file" accept=".pdf" style="display:none" onchange="previewPdf(event)">
+        </label>
+        <div id="pdf-preview-area" style="display:none;margin-top:14px">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
+            Texte extrait — sépare les sujets par une ligne vide ou édite avant d'importer :
+          </div>
+          <textarea class="textarea" id="pdf-preview-text" style="min-height:180px;font-size:11px;line-height:1.6"></textarea>
+          <div class="modal-footer" style="margin-top:12px">
+            <button class="btn" onclick="closeModal('modal-import')">Annuler</button>
+            <button class="btn btn-gold" onclick="importFromPdfPreview()">Importer ces sujets</button>
+          </div>
+        </div>
+        <div id="pdf-loading" style="display:none;text-align:center;padding:20px;font-size:11px;color:var(--text-muted)">
+          Extraction du texte en cours...
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:10px;line-height:1.7">
+          Le texte sera extrait du PDF. Tu pourras le revoir et le modifier avant d'importer.
         </div>
       </div>
     </div>
@@ -2130,7 +2166,8 @@ function showImportModal() {
 
 function switchImportTab(tab, el) {
   document.getElementById('import-tab-paste').style.display = tab === 'paste' ? 'block' : 'none';
-  document.getElementById('import-tab-file').style.display = tab === 'file' ? 'block' : 'none';
+  document.getElementById('import-tab-file').style.display  = tab === 'file'  ? 'block' : 'none';
+  document.getElementById('import-tab-pdf').style.display   = tab === 'pdf'   ? 'block' : 'none';
   document.querySelectorAll('#modal-import .tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
 }
@@ -2157,6 +2194,106 @@ async function importFromPaste() {
         await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').add({
           title, details, prayedDates: [], createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+      }
+      imported++;
+    }
+    if (demoMode) saveDemo();
+    closeModal('modal-import');
+    toast(`${imported} sujet${imported!==1?'s':''} importé${imported!==1?'s':''} ✦`, 'success');
+    loadSubjects();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+// ========================================
+// IMPORT PDF
+// ========================================
+async function previewPdf(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const loadingEl = document.getElementById('pdf-loading');
+  const previewArea = document.getElementById('pdf-preview-area');
+  const previewText = document.getElementById('pdf-preview-text');
+
+  loadingEl.style.display = 'block';
+  previewArea.style.display = 'none';
+
+  try {
+    // Set worker source for PDF.js
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    } else {
+      throw new Error('PDF.js non chargé. Vérifie ta connexion internet.');
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const totalPages = pdf.numPages;
+    const allLines = [];
+
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      // Group items into lines by vertical position
+      const items = textContent.items;
+      let lastY = null;
+      let currentLine = '';
+      for (const item of items) {
+        const y = item.transform ? Math.round(item.transform[5]) : 0;
+        if (lastY !== null && Math.abs(y - lastY) > 2) {
+          if (currentLine.trim()) allLines.push(currentLine.trim());
+          currentLine = item.str;
+        } else {
+          currentLine += item.str;
+        }
+        lastY = y;
+      }
+      if (currentLine.trim()) allLines.push(currentLine.trim());
+      // Add blank line between pages if more than one page
+      if (pageNum < totalPages) allLines.push('');
+    }
+
+    // Show extracted text for review
+    const NL = String.fromCharCode(10);
+    previewText.value = allLines.join(NL);
+    loadingEl.style.display = 'none';
+    previewArea.style.display = 'block';
+    toast('PDF extrait — vérifie et modifie si besoin', 'success');
+
+  } catch(e) {
+    loadingEl.style.display = 'none';
+    toast('Erreur PDF: ' + e.message, 'error');
+  }
+
+  event.target.value = '';
+}
+
+async function importFromPdfPreview() {
+  const text = document.getElementById('pdf-preview-text').value.trim();
+  if (!text) { toast('Aucun texte à importer', 'error'); return; }
+  const NL = String.fromCharCode(10);
+  const blocks = text.split(NL + NL).map(b => b.trim()).filter(Boolean);
+  if (!blocks.length) { toast('Aucun sujet détecté', 'error'); return; }
+  let imported = 0;
+  try {
+    for (const block of blocks) {
+      const lines = block.split(NL).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) continue;
+      const title = lines[0].replace(/^\d+[.)]+\s*/, '').trim();
+      const details = lines.slice(1).join(NL).trim();
+      if (!title) continue;
+      if (demoMode) {
+        if (!demoData.subjects[currentBulletinId]) demoData.subjects[currentBulletinId] = {};
+        const nid = 'demo_' + Date.now() + '_' + imported;
+        demoData.subjects[currentBulletinId][nid] = { title, details, prayedDates: [] };
+      } else {
+        await db.collection('users').doc(uid)
+          .collection('bulletins').doc(currentBulletinId)
+          .collection('subjects').add({
+            title, details, prayedDates: [],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
       }
       imported++;
     }
