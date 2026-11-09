@@ -803,6 +803,25 @@ body::before {
   .ans-result-bar { flex-wrap: wrap; }
 }
 
+/* ── DÉPLACER DES SUJETS ── */
+#modal-move { z-index: 2000; background: rgba(0,0,0,0.75); }
+.move-summary { font-size: 12px; color: var(--text-muted); margin: -10px 0 20px; line-height: 1.7; word-break: break-word; }
+.move-summary strong { color: var(--gold); font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 400; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.select-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 12px;
+  background: var(--surface2); border: 1px solid var(--gold);
+  border-radius: 8px; position: sticky; top: 0; z-index: 5;
+}
+.select-count { font-size: 11px; color: var(--gold); margin-right: auto; }
+.subject-selectable { cursor: pointer; }
+.subject-item.selected { border-color: var(--gold); background: var(--gold-dim); }
+.subject-check { width: 18px; height: 18px; accent-color: var(--gold); flex-shrink: 0; cursor: pointer; margin-top: 2px; }
+.subject-selectable .subject-header { flex-wrap: nowrap; align-items: flex-start; }
+.subject-selectable .subject-header > div:last-child { width: auto; flex: 1; min-width: 0; }
+.section-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
 /* ── TABS ── */
 .tabs { display: flex; gap: 2px; margin-bottom: 24px; background: var(--surface2); border-radius: 8px; padding: 3px; }
 .tab {
@@ -1097,7 +1116,10 @@ body::before {
     </div>
     <div class="section-header">
       <div class="section-title">Sujets de prière <span class="badge" id="subjects-count">0</span></div>
-      <button class="btn btn-sm btn-gold" onclick="showSubjectModal()">+ Ajouter</button>
+      <div class="section-actions">
+        <button class="btn btn-sm" id="select-toggle-btn" onclick="toggleSelectMode()">☑ Sélectionner</button>
+        <button class="btn btn-sm btn-gold" onclick="showSubjectModal()">+ Ajouter</button>
+      </div>
     </div>
     <div id="subjects-list"></div>
   </div>
@@ -1327,6 +1349,31 @@ body::before {
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-answered')">Annuler</button>
       <button class="btn btn-gold" onclick="saveAnswered()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : déplacer des sujets -->
+<div class="modal-overlay" id="modal-move">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modal-move')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title" id="move-title">Déplacer</div>
+    <div class="move-summary" id="move-summary"></div>
+    <div class="form-group">
+      <label class="form-label">Catégorie de destination *</label>
+      <select class="select" id="move-cat" onchange="fillMoveBulletins()"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Bulletin de destination *</label>
+      <select class="select" id="move-bulletin" onchange="onMoveBulletinChange()"></select>
+    </div>
+    <div class="form-group" id="move-new-wrap" style="display:none">
+      <label class="form-label">Nom du nouveau bulletin *</label>
+      <input class="input" id="move-new-name" placeholder="ex: Prière du soir, Famille élargie..." />
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-move')">Annuler</button>
+      <button class="btn btn-gold" id="move-save-btn" onclick="saveMove()">Déplacer</button>
     </div>
   </div>
 </div>
@@ -1889,6 +1936,8 @@ async function saveBulletin() {
 // ========================================
 async function openBulletinDetail(id) {
   currentBulletinId = id;
+  selectMode = false;
+  selectedSubjects.clear();
   const b = await getDoc2('bulletins', id);
   if (!b) return;
   document.getElementById('detail-title').textContent = b.name;
@@ -1929,10 +1978,21 @@ async function loadSubjects() {
   const all = snap.docs.map(d => ({id: d.id, ...d.data()}));
   all.sort((a, b) => createdMs(a) - createdMs(b));
   all.forEach(s => { subjectCache[currentBulletinId + '/' + s.id] = s; });
-  const subjects = all.filter(s => s.answered !== true);
-  const answeredCount = all.length - subjects.length;
+  currentSubjects = all.filter(s => s.answered !== true);
+  currentAnsweredCount = all.length - currentSubjects.length;
+  // drop selected ids that no longer exist in the active list
+  Array.from(selectedSubjects).forEach(id => {
+    if (!currentSubjects.some(s => s.id === id)) selectedSubjects.delete(id);
+  });
+  renderSubjects();
+}
+
+function renderSubjects() {
+  const subjects = currentSubjects;
+  const answeredCount = currentAnsweredCount;
   const today = todayStr();
   document.getElementById('subjects-count').textContent = subjects.length;
+  document.getElementById('select-toggle-btn').textContent = selectMode ? '✕ Quitter la sélection' : '☑ Sélectionner';
   const container = document.getElementById('subjects-list');
   const answeredLink = answeredCount
     ? `<div class="ans-link-row"><button class="btn btn-sm btn-success" onclick="goToAnsweredForBulletin('${currentBulletinId}')">✓ ${answeredCount} exaucé${answeredCount > 1 ? 's' : ''} · voir la liste</button></div>`
@@ -1941,7 +2001,30 @@ async function loadSubjects() {
     container.innerHTML = answeredLink + `<div class="empty-state" style="padding:30px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg><h3>Aucun sujet en cours</h3><p>Ajoute des sujets de prière</p></div>`;
     return;
   }
-  container.innerHTML = answeredLink + subjects.map(s => {
+
+  let bar = '';
+  if (selectMode) {
+    const n = selectedSubjects.size;
+    const allSelected = n === subjects.length;
+    bar = `<div class="select-bar">
+      <span class="select-count">${n} sélectionné${n > 1 ? 's' : ''}</span>
+      <button class="btn btn-sm" onclick="selectAllSubjects()">${allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}</button>
+      <button class="btn btn-sm btn-gold" ${n ? '' : 'disabled'} onclick="moveSelectedSubjects()">Déplacer…</button>
+    </div>`;
+  }
+
+  container.innerHTML = answeredLink + bar + subjects.map(s => {
+    if (selectMode) {
+      const sel = selectedSubjects.has(s.id);
+      return `
+      <div class="subject-item subject-selectable ${sel ? 'selected' : ''}" onclick="toggleSelectSubject('${s.id}')">
+        <div class="subject-header">
+          <input type="checkbox" class="subject-check" ${sel ? 'checked' : ''} tabindex="-1" onclick="event.stopPropagation(); toggleSelectSubject('${s.id}')" />
+          <div class="subject-title">${esc(s.title)}</div>
+        </div>
+        ${s.details ? `<div class="subject-body">${esc(s.details)}</div>` : ''}
+      </div>`;
+    }
     const dates = (s.prayedDates || []).slice().sort();
     const prayedToday = dates.includes(today);
     const count = dates.length;
@@ -1964,6 +2047,9 @@ async function loadSubjects() {
           </div>
           <div class="subject-actions">
             <button class="btn btn-sm btn-success" onclick="openAnsweredModal('${currentBulletinId}','${s.id}')" title="Marquer comme exaucé">✓ Exaucé</button>
+            <button class="btn btn-sm btn-icon" onclick="openMoveModal('${currentBulletinId}',['${s.id}'])" title="Déplacer vers une autre catégorie ou un autre bulletin">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+            </button>
             <button class="btn btn-sm btn-icon" onclick="showSubjectModal('${s.id}')" title="Modifier">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             </button>
@@ -3051,6 +3137,7 @@ function ansCardHTML(a) {
       </div>
       <div class="ans-footer">
         <button class="btn btn-sm" onclick="openAnsweredModal('${a.bulletinId}','${a.id}')">Modifier</button>
+        <button class="btn btn-sm" onclick="openMoveModal('${a.bulletinId}',['${a.id}'])">Déplacer</button>
         <button class="btn btn-sm" onclick="unanswerSubject('${a.bulletinId}','${a.id}')">Remettre en prière</button>
       </div>
     </div>`;
@@ -3077,6 +3164,153 @@ function renderAnswered() {
     return;
   }
   list.innerHTML = filtered.map(ansCardHTML).join('');
+}
+
+// ========================================
+// DÉPLACER DES SUJETS
+// ========================================
+let currentSubjects = [];
+let currentAnsweredCount = 0;
+let selectMode = false;
+const selectedSubjects = new Set();
+let moveState = { from: '', ids: [] };
+let moveCats = [];
+let moveBulletins = [];
+
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  selectedSubjects.clear();
+  renderSubjects();
+}
+
+function toggleSelectSubject(id) {
+  if (selectedSubjects.has(id)) selectedSubjects.delete(id);
+  else selectedSubjects.add(id);
+  renderSubjects();
+}
+
+function selectAllSubjects() {
+  if (selectedSubjects.size === currentSubjects.length) selectedSubjects.clear();
+  else currentSubjects.forEach(s => selectedSubjects.add(s.id));
+  renderSubjects();
+}
+
+function moveSelectedSubjects() {
+  openMoveModal(currentBulletinId, Array.from(selectedSubjects));
+}
+
+function moveCatKey(b) {
+  return moveCats.some(c => c.id === b.categoryId) ? b.categoryId : '__none__';
+}
+
+async function openMoveModal(from, ids) {
+  if (!ids || !ids.length) return;
+  try {
+    const res = await Promise.all([getCategories(), getAll('bulletins')]);
+    moveCats = res[0];
+    moveBulletins = res[1];
+  } catch (e) { toast('Erreur: ' + e.message, 'error'); return; }
+
+  const hasNone = moveBulletins.some(b => b.id !== from && moveCatKey(b) === '__none__');
+  if (!moveCats.length && !hasNone) {
+    toast("Crée d'abord une catégorie", 'error');
+    return;
+  }
+  moveState = { from: from, ids: ids.slice() };
+
+  const titles = ids.map(id => {
+    const s = subjectCache[from + '/' + id];
+    return s ? s.title : '';
+  }).filter(Boolean);
+  document.getElementById('move-title').textContent = ids.length > 1 ? 'Déplacer ' + ids.length + ' sujets' : 'Déplacer le sujet';
+  document.getElementById('move-summary').innerHTML = ids.length === 1
+    ? '<strong>' + esc(titles[0] || '') + '</strong>'
+    : '<strong>' + ids.length + ' sujets</strong><br>' + titles.slice(0, 3).map(esc).join(' · ') + (titles.length > 3 ? ' · …' : '');
+
+  const catSel = document.getElementById('move-cat');
+  catSel.innerHTML = moveCats.map(cat => '<option value="' + cat.id + '">' + esc(cat.name) + '</option>').join('') +
+    (hasNone ? '<option value="__none__">Sans catégorie</option>' : '');
+  const src = moveBulletins.find(b => b.id === from);
+  const srcKey = src ? moveCatKey(src) : '';
+  catSel.value = Array.from(catSel.options).some(o => o.value === srcKey) ? srcKey : catSel.options[0].value;
+
+  document.getElementById('move-new-name').value = '';
+  fillMoveBulletins();
+  openModal('modal-move');
+}
+
+function fillMoveBulletins() {
+  const key = document.getElementById('move-cat').value;
+  const sel = document.getElementById('move-bulletin');
+  const list = moveBulletins.filter(b => b.id !== moveState.from && moveCatKey(b) === key);
+  let html = '<option value="">Choisir un bulletin</option>' +
+    list.map(b => '<option value="' + b.id + '">' + esc(b.name) + '</option>').join('');
+  if (key !== '__none__') html += '<option value="__new__">+ Nouveau bulletin dans cette catégorie…</option>';
+  sel.innerHTML = html;
+  sel.value = (!list.length && key !== '__none__') ? '__new__' : '';
+  onMoveBulletinChange();
+}
+
+function onMoveBulletinChange() {
+  const isNew = document.getElementById('move-bulletin').value === '__new__';
+  document.getElementById('move-new-wrap').style.display = isNew ? 'block' : 'none';
+  if (isNew && document.getElementById('move-modal-open-focus') === null) {
+    setTimeout(() => document.getElementById('move-new-name').focus(), 50);
+  }
+}
+
+async function saveMove() {
+  const from = moveState.from;
+  const ids = moveState.ids;
+  const catKey = document.getElementById('move-cat').value;
+  let target = document.getElementById('move-bulletin').value;
+  if (!catKey) { toast('Choisis une catégorie', 'error'); return; }
+  if (!target) { toast('Choisis un bulletin de destination', 'error'); return; }
+  let newName = '';
+  if (target === '__new__') {
+    newName = document.getElementById('move-new-name').value.trim();
+    if (!newName) { toast('Donne un nom au nouveau bulletin', 'error'); return; }
+  }
+  const btn = document.getElementById('move-save-btn');
+  btn.disabled = true;
+  try {
+    let targetName = '';
+    if (target === '__new__') {
+      target = await addDoc2('bulletins', { name: newName, description: '', categoryId: catKey });
+      targetName = newName;
+    } else {
+      const tb = moveBulletins.find(b => b.id === target);
+      targetName = tb ? tb.name : '';
+    }
+    const snaps = await Promise.all(ids.map(id => subjectsCol(from).doc(id).get()));
+    const batch = db.batch();
+    let n = 0;
+    snaps.forEach(s => {
+      if (!s.exists) return;
+      batch.set(subjectsCol(target).doc(s.id), s.data());
+      batch.delete(s.ref);
+      n++;
+    });
+    if (!n) throw new Error("Ces sujets n'existent plus");
+    await batch.commit();
+    ids.forEach(id => { delete subjectCache[from + '/' + id]; });
+    closeModal('modal-move');
+    selectMode = false;
+    selectedSubjects.clear();
+    toast(n + ' sujet' + (n > 1 ? 's' : '') + ' déplacé' + (n > 1 ? 's' : '') + ' vers « ' + targetName + ' » ✦', 'success');
+    refreshAfterMove();
+  } catch (e) {
+    toast('Erreur: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function refreshAfterMove() {
+  if (document.getElementById('modal-detail').classList.contains('open')) loadSubjects();
+  if (currentView === 'exauces') loadAnswered();
+  if (currentView === 'categories') loadCategories();
+  if (currentView === 'bulletins') loadBulletins();
 }
 
 // ========================================
