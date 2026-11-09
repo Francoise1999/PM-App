@@ -730,6 +730,79 @@ body::before {
   .cat-grid { grid-template-columns: 1fr; }
 }
 
+/* ── EXAUCEMENTS ── */
+#modal-answered { z-index: 2000; background: rgba(0,0,0,0.75); }
+.ans-link-row { margin-bottom: 12px; }
+.filter-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.filter-search { grid-column: 1 / -1; }
+.filter-range { margin-top: 10px; }
+.filter-label {
+  display: block; font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px;
+}
+.ans-result-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-muted);
+}
+.ans-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--green);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  word-break: break-word;
+  transition: border-color var(--transition);
+}
+.ans-card:hover { border-color: var(--border-hover); border-left-color: var(--green); }
+.ans-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ans-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px; font-weight: 400; color: var(--text);
+  letter-spacing: 0.02em; flex: 1; min-width: 0;
+}
+.ans-head .tag { flex-shrink: 0; }
+.ans-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  margin-top: 8px; font-size: 11px; color: var(--text-muted);
+}
+.ans-meta .ans-cat { display: inline-flex; align-items: center; gap: 5px; }
+.ans-bul {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--gold); text-decoration: underline; text-underline-offset: 3px;
+}
+.ans-details {
+  margin-top: 10px; font-size: 11px; color: var(--text-muted);
+  line-height: 1.7; white-space: pre-wrap;
+}
+.ans-note {
+  margin-top: 12px; padding: 10px 12px;
+  background: rgba(94,196,122,0.08);
+  border: 1px solid rgba(94,196,122,0.2);
+  border-radius: 8px;
+}
+.ans-note-label {
+  font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--green); margin-bottom: 5px;
+}
+.ans-note-text { font-size: 12px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+.ans-footer {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+@media (max-width: 768px) {
+  .ans-head { flex-direction: column-reverse; gap: 6px; }
+  .ans-footer .btn { flex: 1; justify-content: center; }
+  .ans-result-bar { flex-wrap: wrap; }
+}
+
 /* ── TABS ── */
 .tabs { display: flex; gap: 2px; margin-bottom: 24px; background: var(--surface2); border-radius: 8px; padding: 3px; }
 .tab {
@@ -801,6 +874,10 @@ body::before {
       </div>
       <div class="nav-item" onclick="navigate('importunites')" data-view="importunites">
         🔥 Importunités
+      </div>
+      <div class="nav-item" onclick="navigate('exauces')" data-view="exauces">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Exaucements
       </div>
     </div>
     <div class="sidebar-footer">
@@ -892,6 +969,61 @@ body::before {
         <div class="divider"></div>
         <div class="section-title" style="margin-bottom:16px">Historique des objectifs</div>
         <div id="objectifs-history"></div>
+      </div>
+
+      <!-- EXAUCEMENTS -->
+      <div class="view" id="view-exauces">
+        <div class="stats-grid" id="ans-stats"></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="filter-bar">
+            <input class="input filter-search" id="ans-search" placeholder="Rechercher dans les sujets, les témoignages, les bulletins..." oninput="renderAnswered()" />
+            <div>
+              <span class="filter-label">Catégorie</span>
+              <select class="select" id="ans-cat" onchange="onAnsCatChange()"></select>
+            </div>
+            <div>
+              <span class="filter-label">Bulletin</span>
+              <select class="select" id="ans-bulletin" onchange="renderAnswered()"></select>
+            </div>
+            <div>
+              <span class="filter-label">Période</span>
+              <select class="select" id="ans-period" onchange="onAnsPeriodChange()">
+                <option value="all">Toutes les dates</option>
+                <option value="month">Ce mois-ci</option>
+                <option value="3m">3 derniers mois</option>
+                <option value="year">Cette année</option>
+                <option value="lastyear">L'année dernière</option>
+                <option value="custom">Dates personnalisées</option>
+              </select>
+            </div>
+            <div>
+              <span class="filter-label">Trier par</span>
+              <select class="select" id="ans-sort" onchange="renderAnswered()">
+                <option value="date_desc">Exaucés récemment d'abord</option>
+                <option value="date_asc">Exaucés il y a longtemps d'abord</option>
+                <option value="title">Titre (A → Z)</option>
+                <option value="prayers">Plus priés d'abord</option>
+                <option value="wait_desc">Délai le plus long</option>
+                <option value="wait_asc">Délai le plus court</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-bar filter-range" id="ans-range" style="display:none">
+            <div>
+              <span class="filter-label">Du</span>
+              <input class="input" type="date" id="ans-from" onchange="renderAnswered()" />
+            </div>
+            <div>
+              <span class="filter-label">Au</span>
+              <input class="input" type="date" id="ans-to" onchange="renderAnswered()" />
+            </div>
+          </div>
+          <div class="ans-result-bar">
+            <span id="ans-count"></span>
+            <button class="btn btn-sm" onclick="resetAnsFilters()">Réinitialiser les filtres</button>
+          </div>
+        </div>
+        <div id="ans-list"></div>
       </div>
 
       <!-- IMPORTUNITÉS -->
@@ -1176,6 +1308,29 @@ body::before {
   </div>
 </div>
 
+<!-- Modal : marquer un sujet comme exaucé -->
+<div class="modal-overlay" id="modal-answered">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modal-answered')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    <div class="modal-title" id="answered-modal-title">Marquer comme exaucé</div>
+    <div id="answered-subject-name" style="font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--gold);margin:-12px 0 20px;word-break:break-word"></div>
+    <input type="hidden" id="answered-bulletin-id">
+    <input type="hidden" id="answered-subject-id">
+    <div class="form-group">
+      <label class="form-label">Date d'exaucement *</label>
+      <input class="input" type="date" id="answered-date" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Comment cela a-t-il été exaucé ?</label>
+      <textarea class="textarea" id="answered-note" style="min-height:120px" placeholder="Raconte comment Dieu a répondu : les circonstances, les personnes, les détails..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-answered')">Annuler</button>
+      <button class="btn btn-gold" onclick="saveAnswered()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1371,7 +1526,7 @@ function navigate(view) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
   document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
-  const titles = { dashboard: 'Tableau de bord', categories: 'Catégories', bulletins: 'Bulletins de prière', suivi: 'Suivi mensuel', statistiques: 'Statistiques', objectifs: 'Objectifs', importunites: 'Importunités' };
+  const titles = { dashboard: 'Tableau de bord', categories: 'Catégories', bulletins: 'Bulletins de prière', suivi: 'Suivi mensuel', statistiques: 'Statistiques', objectifs: 'Objectifs', importunites: 'Importunités', exauces: 'Exaucements' };
   document.getElementById('topbar-title').textContent = titles[view];
   setupTopbarActions(view);
   // Close sidebar on mobile
@@ -1384,6 +1539,7 @@ function navigate(view) {
   else if (view === 'statistiques') loadStats();
   else if (view === 'objectifs') loadObjectifs();
   else if (view === 'importunites') loadImportunites();
+  else if (view === 'exauces') loadAnswered();
 }
 
 function setupTopbarActions(view) {
@@ -1496,7 +1652,7 @@ async function loadCategories(container = 'categories-list') {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayStr();
   const cm = currentMonth();
 
   el.innerHTML = '<div class="cat-grid">' + cats.map(cat => {
@@ -1671,7 +1827,7 @@ async function loadBulletins() {
 function bulletinCardHTML(b, usages, cats) {
   cats = cats || [];
   const bUsages = usages.filter(u => u.bulletinId === b.id);
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayStr();
   const usedToday = bUsages.some(u => u.date === today);
   const cat = cats.find(c => c.id === b.categoryId);
   return `
@@ -1749,7 +1905,7 @@ function deleteBulletinFromDetail() {
 }
 
 async function useBulletin() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayStr();
   const cm = currentMonth();
   const usages = await getAll('usages');
   const usedToday = usages.some(u => u.bulletinId === currentBulletinId && u.date === today);
@@ -1769,23 +1925,26 @@ async function useBulletin() {
 // SUBJECTS
 // ========================================
 async function loadSubjects() {
-  let subjects = [];
-  if (demoMode) {
-    subjects = Object.entries(demoData.subjects[currentBulletinId] || {}).map(([id,d]) => ({id,...d}));
-  } else {
-    const snap = await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').get();
-    subjects = snap.docs.map(d => ({id: d.id, ...d.data()}));
-  }
-  const today = new Date().toISOString().split('T')[0];
+  const snap = await subjectsCol(currentBulletinId).get();
+  const all = snap.docs.map(d => ({id: d.id, ...d.data()}));
+  all.sort((a, b) => createdMs(a) - createdMs(b));
+  all.forEach(s => { subjectCache[currentBulletinId + '/' + s.id] = s; });
+  const subjects = all.filter(s => s.answered !== true);
+  const answeredCount = all.length - subjects.length;
+  const today = todayStr();
   document.getElementById('subjects-count').textContent = subjects.length;
   const container = document.getElementById('subjects-list');
+  const answeredLink = answeredCount
+    ? `<div class="ans-link-row"><button class="btn btn-sm btn-success" onclick="goToAnsweredForBulletin('${currentBulletinId}')">✓ ${answeredCount} exaucé${answeredCount > 1 ? 's' : ''} · voir la liste</button></div>`
+    : '';
   if (!subjects.length) {
-    container.innerHTML = `<div class="empty-state" style="padding:30px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg><h3>Aucun sujet</h3><p>Ajoute des sujets de prière</p></div>`;
+    container.innerHTML = answeredLink + `<div class="empty-state" style="padding:30px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg><h3>Aucun sujet en cours</h3><p>Ajoute des sujets de prière</p></div>`;
     return;
   }
-  container.innerHTML = subjects.map(s => {
-    const prayedToday = (s.prayedDates || []).includes(today);
-    const count = (s.prayedDates || []).length;
+  container.innerHTML = answeredLink + subjects.map(s => {
+    const dates = (s.prayedDates || []).slice().sort();
+    const prayedToday = dates.includes(today);
+    const count = dates.length;
     return `
       <div class="subject-item ${prayedToday ? 'prayed-today' : ''}">
         <div class="subject-header">
@@ -1801,9 +1960,10 @@ async function loadSubjects() {
           <div class="subject-count">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
             Prié ${count} fois
-            ${(s.prayedDates||[]).length ? `· Dernière fois: ${formatDate((s.prayedDates||[]).sort().reverse()[0])}` : ''}
+            ${count ? `· Dernière fois: ${formatDate(dates[dates.length - 1])}` : ''}
           </div>
           <div class="subject-actions">
+            <button class="btn btn-sm btn-success" onclick="openAnsweredModal('${currentBulletinId}','${s.id}')" title="Marquer comme exaucé">✓ Exaucé</button>
             <button class="btn btn-sm btn-icon" onclick="showSubjectModal('${s.id}')" title="Modifier">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             </button>
@@ -1818,7 +1978,7 @@ async function loadSubjects() {
 
 async function praySubject(subjectId, bulletinId, alreadyPrayed) {
   if (alreadyPrayed) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayStr();
   const cm = currentMonth();
   try {
     if (demoMode) {
@@ -1860,8 +2020,7 @@ function showSubjectModal(id = null) {
   document.getElementById('subject-details').value = '';
   document.getElementById('subject-modal-title').textContent = id ? 'Modifier le sujet' : 'Nouveau sujet';
   if (id) {
-    let s = null;
-    if (demoMode) s = demoData.subjects[currentBulletinId]?.[id];
+    const s = subjectCache[currentBulletinId + '/' + id];
     if (s) { document.getElementById('subject-title').value = s.title || ''; document.getElementById('subject-details').value = s.details || ''; }
   }
   openModal('modal-subject');
@@ -1917,7 +2076,7 @@ function confirmDeleteSubject(id, name) {
 async function exportSubjectsDocx() {
   let subjects = [];
   if (demoMode) subjects = Object.values(demoData.subjects[currentBulletinId] || {});
-  else { const snap = await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').get(); subjects = snap.docs.map(d => d.data()); }
+  else { const snap = await db.collection('users').doc(uid).collection('bulletins').doc(currentBulletinId).collection('subjects').get(); subjects = snap.docs.map(d => d.data()).filter(s => s.answered !== true); }
   const b = await getDoc2('bulletins', currentBulletinId);
   const { Document, Paragraph, TextRun, HeadingLevel, Packer } = docx;
   const doc = new Document({
@@ -2363,7 +2522,7 @@ async function deleteImpSubject(id) {
 function openImpLogModal(id, subject) {
   document.getElementById('imp-log-id').value = id;
   document.getElementById('imp-log-name').textContent = subject;
-  document.getElementById('imp-log-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('imp-log-date').value = todayStr();
   document.getElementById('imp-log-count').value = '';
   document.getElementById('imp-log-note').value = '';
   openModal('modal-imp-log');
@@ -2374,7 +2533,7 @@ async function saveImpLog() {
   const id = document.getElementById('imp-log-id').value;
   const count = parseInt(document.getElementById('imp-log-count').value);
   if (!count || count < 1) { toast('Entre un nombre valide', 'error'); return; }
-  const date = document.getElementById('imp-log-date').value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('imp-log-date').value || todayStr();
   const note = document.getElementById('imp-log-note').value.trim();
   const logEntry = { id: 'log_' + Date.now(), date, count, note };
   try {
@@ -2607,6 +2766,317 @@ async function importFromPdfPreview() {
     toast(`${imported} sujet${imported!==1?'s':''} importé${imported!==1?'s':''} ✦`, 'success');
     loadSubjects();
   } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+// ========================================
+// EXAUCEMENTS
+// ========================================
+const subjectCache = {};
+let ansData = [];
+let ansBulletins = [];
+let ansCats = [];
+let pendingAnsBulletin = null;
+
+function subjectsCol(bId) {
+  return db.collection('users').doc(uid).collection('bulletins').doc(bId).collection('subjects');
+}
+
+function createdMs(s) {
+  return s && s.createdAt && s.createdAt.toMillis ? s.createdAt.toMillis() : 0;
+}
+
+function toLocalISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function todayStr() { return toLocalISO(new Date()); }
+
+function daysBetween(a, b) {
+  const d1 = new Date(a + 'T00:00:00');
+  const d2 = new Date(b + 'T00:00:00');
+  return Math.max(0, Math.round((d2 - d1) / 86400000));
+}
+
+function formatDuration(d) {
+  if (d === 0) return 'le jour même';
+  if (d < 60) return d + (d > 1 ? ' jours' : ' jour');
+  if (d < 365) return Math.round(d / 30) + ' mois';
+  let y = Math.floor(d / 365);
+  let m = Math.round((d % 365) / 30);
+  if (m === 12) { y += 1; m = 0; }
+  return y + (y > 1 ? ' ans' : ' an') + (m ? ' ' + m + ' mois' : '');
+}
+
+function formatDateFull(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function normText(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function subjectStartDate(s) {
+  const pd = (s.prayedDates || []).slice().sort();
+  if (pd.length) return pd[0];
+  if (s.createdAt && s.createdAt.toDate) return toLocalISO(s.createdAt.toDate());
+  return null;
+}
+
+// ── Marquer / modifier l'exaucement ──
+function openAnsweredModal(bId, sId) {
+  const s = subjectCache[bId + '/' + sId];
+  if (!s) { toast("Sujet introuvable, recharge la page", 'error'); return; }
+  const editing = s.answered === true;
+  document.getElementById('answered-modal-title').textContent = editing ? "Modifier l'exaucement" : 'Marquer comme exaucé';
+  document.getElementById('answered-subject-name').textContent = s.title || '';
+  document.getElementById('answered-bulletin-id').value = bId;
+  document.getElementById('answered-subject-id').value = sId;
+  const dateInput = document.getElementById('answered-date');
+  dateInput.max = todayStr();
+  dateInput.value = s.answeredDate || todayStr();
+  document.getElementById('answered-note').value = s.answeredNote || '';
+  openModal('modal-answered');
+}
+
+async function saveAnswered() {
+  const bId = document.getElementById('answered-bulletin-id').value;
+  const sId = document.getElementById('answered-subject-id').value;
+  const date = document.getElementById('answered-date').value;
+  const note = document.getElementById('answered-note').value.trim();
+  if (!bId || !sId) { toast('Sujet introuvable', 'error'); return; }
+  if (!date) { toast("Choisis la date d'exaucement", 'error'); return; }
+  try {
+    await subjectsCol(bId).doc(sId).update({ answered: true, answeredDate: date, answeredNote: note });
+    closeModal('modal-answered');
+    toast('Sujet marqué comme exaucé ✦', 'success');
+    refreshAfterAnswerChange();
+  } catch (e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+async function unanswerSubject(bId, sId) {
+  if (!confirm("Remettre ce sujet dans la liste de prière ? La date et le témoignage d'exaucement seront effacés.")) return;
+  try {
+    await subjectsCol(bId).doc(sId).update({
+      answered: false,
+      answeredDate: firebase.firestore.FieldValue.delete(),
+      answeredNote: firebase.firestore.FieldValue.delete()
+    });
+    toast('Sujet remis en prière', 'success');
+    refreshAfterAnswerChange();
+  } catch (e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
+function refreshAfterAnswerChange() {
+  if (document.getElementById('modal-detail').classList.contains('open')) loadSubjects();
+  if (currentView === 'exauces') loadAnswered();
+}
+
+function goToAnsweredForBulletin(bId) {
+  pendingAnsBulletin = bId;
+  closeModal('modal-detail');
+  navigate('exauces');
+}
+
+// ── Page Exaucements ──
+async function loadAnswered() {
+  const list = document.getElementById('ans-list');
+  list.innerHTML = '<div style="text-align:center;padding:40px 0;font-size:11px;color:var(--text-muted)">Chargement...</div>';
+  try {
+    const [bulletins, cats] = await Promise.all([getAll('bulletins'), getCategories()]);
+    const perBulletin = await Promise.all(bulletins.map(async b => {
+      const snap = await subjectsCol(b.id).where('answered', '==', true).get();
+      return snap.docs.map(d => {
+        const s = { id: d.id, ...d.data() };
+        subjectCache[b.id + '/' + s.id] = s;
+        const start = subjectStartDate(s);
+        return {
+          ...s,
+          bulletinId: b.id,
+          bulletinName: b.name || '',
+          categoryId: b.categoryId || '',
+          waitDays: start && s.answeredDate ? daysBetween(start, s.answeredDate) : null
+        };
+      });
+    }));
+    ansData = perBulletin.flat();
+    ansBulletins = bulletins;
+    ansCats = cats;
+    fillAnsCatOptions();
+    if (pendingAnsBulletin) {
+      const pb = ansBulletins.find(b => b.id === pendingAnsBulletin);
+      if (pb) document.getElementById('ans-cat').value = pb.categoryId || '';
+    }
+    fillAnsBulletinOptions();
+    if (pendingAnsBulletin) {
+      document.getElementById('ans-bulletin').value = pendingAnsBulletin;
+      if (document.getElementById('ans-bulletin').value !== pendingAnsBulletin) {
+        document.getElementById('ans-bulletin').value = '';
+      }
+      pendingAnsBulletin = null;
+    }
+    renderAnsStats();
+    renderAnswered();
+  } catch (e) {
+    list.innerHTML = '';
+    toast('Erreur: ' + e.message, 'error');
+  }
+}
+
+function fillAnsCatOptions() {
+  const sel = document.getElementById('ans-cat');
+  const prev = sel.value;
+  const usedCats = ansCats.filter(cat => ansData.some(a => a.categoryId === cat.id));
+  sel.innerHTML = '<option value="">Toutes les catégories</option>' +
+    usedCats.map(cat => '<option value="' + cat.id + '">' + esc(cat.name) + '</option>').join('');
+  sel.value = usedCats.some(cat => cat.id === prev) ? prev : '';
+}
+
+function fillAnsBulletinOptions() {
+  const catId = document.getElementById('ans-cat').value;
+  const sel = document.getElementById('ans-bulletin');
+  const prev = sel.value;
+  const list = ansBulletins.filter(b => ansData.some(a => a.bulletinId === b.id) && (!catId || b.categoryId === catId));
+  sel.innerHTML = '<option value="">Tous les bulletins</option>' +
+    list.map(b => '<option value="' + b.id + '">' + esc(b.name) + '</option>').join('');
+  sel.value = list.some(b => b.id === prev) ? prev : '';
+}
+
+function onAnsCatChange() {
+  fillAnsBulletinOptions();
+  renderAnswered();
+}
+
+function onAnsPeriodChange() {
+  document.getElementById('ans-range').style.display =
+    document.getElementById('ans-period').value === 'custom' ? 'grid' : 'none';
+  renderAnswered();
+}
+
+function resetAnsFilters() {
+  document.getElementById('ans-search').value = '';
+  document.getElementById('ans-cat').value = '';
+  document.getElementById('ans-period').value = 'all';
+  document.getElementById('ans-sort').value = 'date_desc';
+  document.getElementById('ans-from').value = '';
+  document.getElementById('ans-to').value = '';
+  document.getElementById('ans-range').style.display = 'none';
+  fillAnsBulletinOptions();
+  document.getElementById('ans-bulletin').value = '';
+  renderAnswered();
+}
+
+function renderAnsStats() {
+  const month = currentMonth();
+  const year = String(new Date().getFullYear());
+  const total = ansData.length;
+  const inMonth = ansData.filter(a => (a.answeredDate || '').startsWith(month)).length;
+  const inYear = ansData.filter(a => (a.answeredDate || '').startsWith(year)).length;
+  const waits = ansData.map(a => a.waitDays).filter(w => w !== null);
+  const avg = waits.length ? Math.round(waits.reduce((x, y) => x + y, 0) / waits.length) : null;
+  document.getElementById('ans-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">Sujets exaucés</div></div>
+    <div class="stat-card"><div class="stat-value">${inMonth}</div><div class="stat-label">Ce mois-ci</div><div class="stat-sub">${monthLabel(month)}</div></div>
+    <div class="stat-card"><div class="stat-value">${inYear}</div><div class="stat-label">Cette année</div><div class="stat-sub">${year}</div></div>
+    <div class="stat-card"><div class="stat-value">${avg === null ? '—' : avg}</div><div class="stat-label">Délai moyen</div><div class="stat-sub">${avg === null ? 'pas encore de donnée' : 'jours avant l’exaucement'}</div></div>`;
+}
+
+function getFilteredAnswered() {
+  const q = normText(document.getElementById('ans-search').value.trim());
+  const catId = document.getElementById('ans-cat').value;
+  const bulId = document.getElementById('ans-bulletin').value;
+  const period = document.getElementById('ans-period').value;
+  const now = new Date();
+  const year = now.getFullYear();
+  let from = '';
+  let to = '';
+  if (period === 'month') { from = currentMonth() + '-01'; to = currentMonth() + '-31'; }
+  else if (period === '3m') { from = toLocalISO(new Date(year, now.getMonth() - 2, 1)); }
+  else if (period === 'year') { from = year + '-01-01'; to = year + '-12-31'; }
+  else if (period === 'lastyear') { from = (year - 1) + '-01-01'; to = (year - 1) + '-12-31'; }
+  else if (period === 'custom') {
+    from = document.getElementById('ans-from').value;
+    to = document.getElementById('ans-to').value;
+  }
+  return ansData.filter(a => {
+    if (catId && a.categoryId !== catId) return false;
+    if (bulId && a.bulletinId !== bulId) return false;
+    if (from && (!a.answeredDate || a.answeredDate < from)) return false;
+    if (to && (!a.answeredDate || a.answeredDate > to)) return false;
+    if (q && !normText([a.title, a.details, a.answeredNote, a.bulletinName].join(' ')).includes(q)) return false;
+    return true;
+  });
+}
+
+function sortAnswered(arr) {
+  const mode = document.getElementById('ans-sort').value;
+  const byDate = (a, b) => (a.answeredDate || '').localeCompare(b.answeredDate || '');
+  const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '', 'fr', { sensitivity: 'base' });
+  const wait = a => (a.waitDays === null ? -1 : a.waitDays);
+  const out = arr.slice();
+  if (mode === 'date_asc') out.sort(byDate);
+  else if (mode === 'title') out.sort(byTitle);
+  else if (mode === 'prayers') out.sort((a, b) => (b.prayedDates || []).length - (a.prayedDates || []).length || byDate(b, a));
+  else if (mode === 'wait_desc') out.sort((a, b) => wait(b) - wait(a));
+  else if (mode === 'wait_asc') {
+    const known = out.filter(a => a.waitDays !== null).sort((a, b) => a.waitDays - b.waitDays);
+    const unknown = out.filter(a => a.waitDays === null);
+    return known.concat(unknown);
+  }
+  else out.sort((a, b) => byDate(b, a));
+  return out;
+}
+
+function ansCardHTML(a) {
+  const cat = ansCats.find(x => x.id === a.categoryId);
+  const prayed = (a.prayedDates || []).length;
+  let waitTxt = '';
+  if (a.waitDays !== null) waitTxt = a.waitDays === 0 ? 'Exaucé le jour même' : 'Exaucé après ' + formatDuration(a.waitDays);
+  return `
+    <div class="ans-card">
+      <div class="ans-head">
+        <div class="ans-title">${esc(a.title)}</div>
+        <span class="tag tag-green">${esc(formatDateFull(a.answeredDate))}</span>
+      </div>
+      <div class="ans-meta">
+        <button class="ans-bul" onclick="openBulletinDetail('${a.bulletinId}')">${esc(a.bulletinName)}</button>
+        ${cat ? `<span class="ans-cat"><span class="cat-color-dot" style="background:${cat.color || 'var(--gold)'}"></span>${esc(cat.name)}</span>` : ''}
+        <span>Prié ${prayed} fois</span>
+        ${waitTxt ? `<span>${waitTxt}</span>` : ''}
+      </div>
+      ${a.details ? `<div class="ans-details">${esc(a.details)}</div>` : ''}
+      <div class="ans-note">
+        <div class="ans-note-label">Comment cela a été exaucé</div>
+        <div class="ans-note-text">${a.answeredNote ? esc(a.answeredNote) : '<span style="color:var(--text-dim);font-style:italic">Aucun témoignage ajouté</span>'}</div>
+      </div>
+      <div class="ans-footer">
+        <button class="btn btn-sm" onclick="openAnsweredModal('${a.bulletinId}','${a.id}')">Modifier</button>
+        <button class="btn btn-sm" onclick="unanswerSubject('${a.bulletinId}','${a.id}')">Remettre en prière</button>
+      </div>
+    </div>`;
+}
+
+function renderAnswered() {
+  const list = document.getElementById('ans-list');
+  const countEl = document.getElementById('ans-count');
+  if (!ansData.length) {
+    countEl.textContent = '';
+    list.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="40" height="40"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <h3>Aucun sujet exaucé pour l'instant</h3>
+      <p>Dans un bulletin, clique sur « Exaucé » sur un sujet pour l'ajouter ici.</p>
+    </div>`;
+    return;
+  }
+  const filtered = sortAnswered(getFilteredAnswered());
+  const n = filtered.length;
+  countEl.textContent = n + ' sujet' + (n > 1 ? 's' : '') + ' exaucé' + (n > 1 ? 's' : '') +
+    (n !== ansData.length ? ' sur ' + ansData.length : '');
+  if (!n) {
+    list.innerHTML = `<div class="empty-state"><h3>Aucun résultat</h3><p>Aucun sujet exaucé ne correspond à ces filtres.</p></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(ansCardHTML).join('');
 }
 
 // ========================================
